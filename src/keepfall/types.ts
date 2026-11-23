@@ -1,3 +1,5 @@
+import type { FactionId } from './factions';
+
 export type Resource = 'stone' | 'mana' | 'steel';
 export type Generator = 'quarry' | 'sanctum' | 'barracks';
 export type Target = 'self' | 'enemy';
@@ -31,6 +33,7 @@ export interface CardDef {
 
 export interface Player {
   name: string;
+  faction: FactionId;
   tower: number;
   wall: number;
   res: Record<Resource, number>;
@@ -44,7 +47,7 @@ export type Action =
 
 export interface LogEntry {
   player: 0 | 1;
-  kind: 'play' | 'discard' | 'info';
+  kind: 'play' | 'discard' | 'info' | 'event';
   cardId?: string;
   text: string;
 }
@@ -63,6 +66,7 @@ export interface GameState {
   winReason?: string;
   log: LogEntry[];
   lastAction?: { player: 0 | 1; kind: 'play' | 'discard'; cardId: string };
+  event: string | null; // id of the active shared event, if any
 }
 
 export interface Rules {
@@ -73,6 +77,7 @@ export interface Rules {
   handSize: number;
   winTower: number;
   winRes: number;
+  eventEvery: number; // a new event every N turns (0 = no events)
 }
 
 export const DEFAULT_RULES: Rules = {
@@ -81,6 +86,7 @@ export const DEFAULT_RULES: Rules = {
   startRes: 5,
   startGen: 2,
   handSize: 6,
-  winTower: 60,
+  winTower: 50,
   winRes: 150,
+  eventEvery: 6,
 };

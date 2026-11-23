@@ -1,5 +1,5 @@
 import { card } from './cards';
-import { applyOp, legalActions, step } from './engine';
+import { applyOp, costOf, legalActions, modsFor, step } from './engine';
 import { DEFAULT_RULES, RESOURCES } from './types';
 import type { Action, GameState, Player, Rules } from './types';
 
@@ -36,11 +36,12 @@ function cardWorth(state: GameState, me: 0 | 1, cardId: string, rules: Rules): n
   const c = card(cardId);
   const sim = structuredClone(state);
   const p = sim.players[me];
-  for (const o of c.ops) applyOp(p, sim.players[1 - me], o);
+  const mods = modsFor(state, me);
+  for (const o of c.ops) applyOp(p, sim.players[1 - me], o, mods);
   let gain = evaluate(sim, me, rules) - evaluate(state, me, rules);
   if (c.ops.some((o) => o.op === 'again')) gain += 4;
   const real = state.players[me];
-  const short = c.cost - real.res[c.type];
+  const short = costOf(state, me, cardId) - real.res[c.type];
   const turnsAway = short <= 0 ? 0 : Math.ceil(short / real.gen[c.type]);
   return gain / (1 + turnsAway);
 }

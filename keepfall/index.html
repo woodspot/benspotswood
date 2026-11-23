@@ -13,6 +13,7 @@
       <a class="back" href="/" title="All games">←</a>
       <h1>Keepfall</h1>
       <div id="turn-indicator" class="turn"></div>
+      <button id="btn-mute" class="ghost icon" title="Sound on/off">🔊</button>
       <button id="btn-log" class="ghost">Log</button>
       <button id="btn-menu" class="ghost">New game</button>
     </header>
@@ -22,6 +23,7 @@
     <main class="board">
       <aside class="panel" id="panel-0"></aside>
       <div class="field">
+        <div class="event-banner" id="event-banner"></div>
         <div class="goal-line" id="goal-line"><span id="goal-label"></span></div>
         <div class="castle" id="castle-0">
           <div class="tower"><div class="flag"></div><div class="tower-body"></div><div class="tower-num"></div></div>
@@ -47,6 +49,8 @@
       <ol id="log-list"></ol>
     </aside>
   </div>
+
+  <div class="toast" id="toast"></div>
 
   <div class="overlay" id="overlay">
     <div class="dialog" id="dialog"></div>

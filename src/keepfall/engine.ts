@@ -1,4 +1,5 @@
 import { CARDS, card } from './cards';
+import { EVENTS, EVENT_MAP, FACTIONS, FACTION_MAP, mergeMods, type FactionId, type Mods } from './factions';
 import { DEFAULT_RULES, RESOURCES } from './types';
 import type { Action, GameState, Op, Player, Rules, WinKind } from './types';
 
@@ -26,29 +27,46 @@ function draw(state: GameState): string {
   return state.deck.pop()!;
 }
 
-function newPlayer(name: string, rules: Rules): Player {
-  return {
+function newPlayer(name: string, faction: FactionId, rules: Rules): Player {
+  const f = FACTION_MAP[faction];
+  const p: Player = {
     name,
-    tower: rules.startTower,
-    wall: rules.startWall,
+    faction,
+    tower: rules.startTower + (f.start.tower ?? 0),
+    wall: rules.startWall + (f.start.wall ?? 0),
     res: { stone: rules.startRes, mana: rules.startRes, steel: rules.startRes },
     gen: { stone: rules.startGen, mana: rules.startGen, steel: rules.startGen },
     hand: [],
   };
+  for (const r of RESOURCES) p.gen[r] += f.start.gen?.[r] ?? 0;
+  return p;
 }
 
-export function newGame(opts: { seed?: number; names?: [string, string]; first?: 0 | 1; rules?: Rules } = {}): GameState {
+export interface NewGameOptions {
+  seed?: number;
+  names?: [string, string];
+  factions?: [FactionId, FactionId];
+  first?: 0 | 1;
+  rules?: Rules;
+}
+
+export function newGame(opts: NewGameOptions = {}): GameState {
   const rules = opts.rules ?? DEFAULT_RULES;
   const names = opts.names ?? ['You', 'Opponent'];
+  const seed = opts.seed ?? (Math.random() * 2 ** 32) | 0;
+  // Pick factions from the seed if not given, so seeded games stay reproducible.
+  const pick = (n: number) => FACTIONS[Math.abs(seed + n) % FACTIONS.length].id;
+  const factions = opts.factions ?? [pick(0), pick(1)];
   const state: GameState = {
-    players: [newPlayer(names[0], rules), newPlayer(names[1], rules)],
+    players: [newPlayer(names[0], factions[0], rules), newPlayer(names[1], factions[1], rules)],
     current: 0,
     turn: 1,
     deck: CARDS.flatMap((c) => Array.from({ length: c.copies }, () => c.id)),
     discard: [],
-    rng: opts.seed ?? (Math.random() * 2 ** 32) | 0,
+    rng: seed,
     winner: null,
     log: [],
+    event: null,
   };
   shuffle(state, state.deck);
   for (let i = 0; i < rules.handSize; i++) {
@@ -60,39 +78,62 @@ export function newGame(opts: { seed?: number; names?: [string, string]; first?:
   return state;
 }
 
+/** Everything currently changing the rules for player `who`: their faction plus the shared event. */
+export function modsFor(state: GameState, who: 0 | 1): Required<Mods> {
+  return mergeMods(FACTION_MAP[state.players[who].faction], state.event ? EVENT_MAP[state.event] : undefined);
+}
+
 /** Start of turn: each generator adds its resource. */
 function produce(state: GameState): void {
   const p = state.players[state.current];
-  for (const r of RESOURCES) p.res[r] += p.gen[r];
+  const { prodDelta } = modsFor(state, state.current);
+  for (const r of RESOURCES) p.res[r] += Math.max(1, p.gen[r] + prodDelta);
 }
 
-export function canAfford(p: Player, cardId: string): boolean {
+/** Every `eventEvery` turns the shared event changes. */
+function maybeChangeEvent(state: GameState, rules: Rules): void {
+  if (!rules.eventEvery || state.turn === 1 || (state.turn - 1) % rules.eventEvery !== 0) return;
+  const choices = EVENTS.filter((e) => e.id !== state.event);
+  const e = choices[Math.floor(nextRandom(state) * choices.length)];
+  state.event = e.id;
+  state.log.push({ player: state.current, kind: 'event', text: `${e.icon} ${e.name}: ${e.text}` });
+}
+
+export function costOf(state: GameState, who: 0 | 1, cardId: string): number {
   const c = card(cardId);
-  return p.res[c.type] >= c.cost;
+  return Math.max(0, c.cost + (modsFor(state, who).costDelta[c.type] ?? 0));
+}
+
+export function canAfford(state: GameState, who: 0 | 1, cardId: string): boolean {
+  return state.players[who].res[card(cardId).type] >= costOf(state, who, cardId);
 }
 
 export function legalActions(state: GameState): Action[] {
   if (state.winner !== null) return [];
-  const p = state.players[state.current];
+  const who = state.current;
   const out: Action[] = [];
-  p.hand.forEach((id, index) => {
-    if (canAfford(p, id)) out.push({ kind: 'play', index });
+  state.players[who].hand.forEach((id, index) => {
+    if (canAfford(state, who, id)) out.push({ kind: 'play', index });
     out.push({ kind: 'discard', index });
   });
   return out;
 }
 
-export function applyOp(me: Player, foe: Player, o: Op): void {
+const NO_MODS: Required<Mods> = mergeMods();
+
+export function applyOp(me: Player, foe: Player, o: Op, mods: Required<Mods> = NO_MODS): void {
   switch (o.op) {
     case 'damage': {
-      const absorbed = Math.min(foe.wall, o.amt);
+      const amt = o.amt + mods.damageBonus;
+      const absorbed = Math.min(foe.wall, amt);
       foe.wall -= absorbed;
-      foe.tower = Math.max(0, foe.tower - (o.amt - absorbed));
+      foe.tower = Math.max(0, foe.tower - (amt - absorbed));
       break;
     }
     case 'tower': {
       const t = o.target === 'self' ? me : foe;
-      t.tower = Math.max(0, t.tower + o.amt);
+      const amt = o.target === 'enemy' && o.amt < 0 ? o.amt - mods.spellBonus : o.amt;
+      t.tower = Math.max(0, t.tower + amt);
       break;
     }
     case 'wall': {
@@ -161,9 +202,10 @@ export function step(prev: GameState, action: Action, rules: Rules = DEFAULT_RUL
 
   let playAgain = false;
   if (action.kind === 'play') {
-    if (!canAfford(me, cardId)) throw new Error(`Cannot afford ${c.name}`);
-    me.res[c.type] -= c.cost;
-    for (const o of c.ops) applyOp(me, foe, o);
+    if (!canAfford(state, who, cardId)) throw new Error(`Cannot afford ${c.name}`);
+    me.res[c.type] -= costOf(state, who, cardId);
+    const mods = modsFor(state, who);
+    for (const o of c.ops) applyOp(me, foe, o, mods);
     playAgain = c.ops.some((o) => o.op === 'again');
     state.log.push({ player: who, kind: 'play', cardId, text: `${me.name} played ${c.name}` });
   } else {
@@ -184,6 +226,7 @@ export function step(prev: GameState, action: Action, rules: Rules = DEFAULT_RUL
   if (!playAgain) {
     state.current = (1 - who) as 0 | 1;
     state.turn++;
+    maybeChangeEvent(state, rules);
     produce(state);
     checkWinner(state, rules); // production can hit the resource goal
     if (state.winner !== null) state.log.push({ player: state.current, kind: 'info', text: state.winReason! });
