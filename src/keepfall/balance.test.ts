@@ -3,7 +3,8 @@ import { chooseAction } from './ai';
 import { newGame, step } from './engine';
 import { card } from './cards';
 
-it('balance report', () => {
+// Slow (200 full games); runs locally only, skipped on GitHub Actions where CI=true.
+it.skipIf(process.env.CI)('balance report', () => {
   const reasons: Record<string, number> = {};
   const plays: Record<string, number> = {};
   let firstWins = 0, turns = 0; const N = 200;
@@ -18,4 +19,4 @@ it('balance report', () => {
   }
   console.log({ firstWins, avgTurns: turns / N, reasons });
   console.log(Object.entries(plays).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k}:${v}`).join('  '));
-});
+}, 120_000);

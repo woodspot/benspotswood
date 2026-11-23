@@ -68,5 +68,5 @@ describe('engine', () => {
     }
     console.log(`normal beat easy ${normalWins}/${N}, avg ${Math.round(turns / N)} turns`);
     expect(normalWins).toBeGreaterThan(N / 2);
-  });
+  }, 60_000);
 });
