@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Keepfall · Castle Card Battle</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/src/keepfall/style.css" />
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <a class="back" href="/" title="All games">←</a>
+      <h1>Keepfall</h1>
+      <div id="turn-indicator" class="turn"></div>
+      <button id="btn-log" class="ghost">Log</button>
+      <button id="btn-menu" class="ghost">New game</button>
+    </header>
+
+    <section class="opp-hand" id="opp-hand" aria-label="Opponent's hand"></section>
+
+    <main class="board">
+      <aside class="panel" id="panel-0"></aside>
+      <div class="field">
+        <div class="goal-line" id="goal-line"><span id="goal-label"></span></div>
+        <div class="castle" id="castle-0">
+          <div class="tower"><div class="flag"></div><div class="tower-body"></div><div class="tower-num"></div></div>
+          <div class="wall"><div class="wall-num"></div></div>
+        </div>
+        <div class="played-slot" id="played-slot"></div>
+        <div class="castle enemy" id="castle-1">
+          <div class="wall"><div class="wall-num"></div></div>
+          <div class="tower"><div class="flag"></div><div class="tower-body"></div><div class="tower-num"></div></div>
+        </div>
+        <div class="ground"></div>
+      </div>
+      <aside class="panel" id="panel-1"></aside>
+    </main>
+
+    <section class="hand-area">
+      <div class="hint" id="hint"></div>
+      <div class="hand" id="hand"></div>
+    </section>
+
+    <aside class="log" id="log" hidden>
+      <h3>Battle log</h3>
+      <ol id="log-list"></ol>
+    </aside>
+  </div>
+
+  <div class="overlay" id="overlay">
+    <div class="dialog" id="dialog"></div>
+  </div>
+
+  <script type="module" src="/src/keepfall/main.ts"></script>
+</body>
+</html>

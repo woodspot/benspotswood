@@ -1,0 +1,14 @@
+import { defineConfig } from 'vite';
+import { resolve } from 'node:path';
+
+export default defineConfig({
+  base: '/',
+  build: {
+    rollupOptions: {
+      input: {
+        hub: resolve(import.meta.dirname, 'index.html'),
+        keepfall: resolve(import.meta.dirname, 'keepfall/index.html'),
+      },
+    },
+  },
+});
