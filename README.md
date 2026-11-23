@@ -31,10 +31,10 @@ Every push to `main` builds the site and uploads `dist/` to Hostinger via `.gith
 
 One-time setup:
 
-1. **Hostinger hPanel → Files → FTP Accounts**: create an FTP account whose directory is the `games` subdomain folder.
+1. **Hostinger hPanel → Files → FTP Accounts**: use the site's FTP account. Its login starts in `public_html`, and the workflow uploads into `./games/` (the subdomain's folder, `public_html/games`).
 2. **GitHub repo → Settings → Secrets and variables → Actions → New repository secret**:
-   - `FTP_SERVER` – FTP hostname shown in hPanel
+   - `FTP_SERVER` – the **FTP IP** shown in hPanel (no `ftp://`, no port)
    - `FTP_USERNAME` – the FTP account's username
    - `FTP_PASSWORD` – its password
-   - `FTP_SERVER_DIR` – *optional*, only if the FTP account isn't limited to the games folder (must end in `/`)
+   - `FTP_SERVER_DIR` – *optional*, overrides the upload folder `./games/` (must end in `/`)
 3. Push to `main`, or run the workflow manually from the **Actions** tab.

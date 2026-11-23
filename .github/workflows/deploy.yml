@@ -31,6 +31,6 @@ jobs:
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
           local-dir: ./dist/
-          # If the FTP account is limited to the games folder, leave this as ./
-          # Otherwise set the FTP_SERVER_DIR secret, e.g. /domains/benspotswood.com/public_html/games/
-          server-dir: ${{ secrets.FTP_SERVER_DIR || './' }}
+          # The FTP login starts in public_html; the games subdomain serves public_html/games.
+          # Override with an FTP_SERVER_DIR secret if that ever changes (must end in /).
+          server-dir: ${{ secrets.FTP_SERVER_DIR || './games/' }}
