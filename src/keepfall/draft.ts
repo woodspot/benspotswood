@@ -1,4 +1,4 @@
-import { CARDS, card, rarity, STARTER_DECK } from './cards';
+import { availableCards, card, rarity, STARTER_DECK } from './cards';
 import type { Rarity } from './types';
 
 /** A seeded random source that lives inside a saveable object. */
@@ -15,8 +15,11 @@ export function rand(h: RngHolder): number {
 
 export const DRAFT_PICKS = 12;
 
-const POOL: Record<Rarity, string[]> = { common: [], uncommon: [], rare: [] };
-for (const c of CARDS) POOL[rarity(c.id)].push(c.id);
+function pools(): Record<Rarity, string[]> {
+  const pool: Record<Rarity, string[]> = { common: [], uncommon: [], rare: [] };
+  for (const c of availableCards()) pool[rarity(c.id)].push(c.id);
+  return pool;
+}
 
 /**
  * Offer `n` different cards. `luck` shifts odds toward rarer cards
@@ -24,6 +27,7 @@ for (const c of CARDS) POOL[rarity(c.id)].push(c.id);
  */
 export function offerCards(h: RngHolder, n = 3, luck = 0): string[] {
   const out: string[] = [];
+  const POOL = pools();
   const rareP = 0.1 + 0.15 * luck;
   const uncP = 0.3 + 0.15 * luck;
   let guard = 0;

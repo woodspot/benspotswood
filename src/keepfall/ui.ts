@@ -34,7 +34,7 @@ export function cardFace(id: string, opts: { cost?: number; unaffordable?: boole
 
 export function relicChip(id: string): string {
   const r = RELIC_MAP[id];
-  return r ? `<span class="relic" title="${esc(r.name)}: ${esc(r.text)}">${r.icon}</span>` : '';
+  return r ? `<span class="relic" data-info="${esc(`${r.icon} ${r.name}: ${r.text}`)}">${r.icon}</span>` : '';
 }
 
 export function relicTile(id: string, selected = false): string {
@@ -71,4 +71,41 @@ export function bind(root: HTMLElement, handlers: Record<string, (el: HTMLElemen
     const h = handlers[el.dataset.act!];
     if (h) el.addEventListener('click', () => h(el));
   });
+}
+
+/**
+ * Anything with `data-info` shows its text in a bubble when tapped (phones have no hover),
+ * or hovered with a mouse.
+ */
+export function initInfoPops(): void {
+  const pop = $('info-pop');
+  let owner: Element | null = null;
+  const show = (el: HTMLElement) => {
+    owner = el;
+    pop.textContent = el.dataset.info ?? '';
+    pop.hidden = false;
+    const r = el.getBoundingClientRect();
+    const w = pop.offsetWidth;
+    const left = Math.min(window.innerWidth - w - 8, Math.max(8, r.left + r.width / 2 - w / 2));
+    const above = r.top - pop.offsetHeight - 8;
+    pop.style.left = `${left}px`;
+    pop.style.top = `${above > 8 ? above : r.bottom + 8}px`;
+  };
+  const hide = () => {
+    owner = null;
+    pop.hidden = true;
+  };
+  document.addEventListener('click', (e) => {
+    const el = (e.target as HTMLElement).closest<HTMLElement>('[data-info]');
+    if (el && el !== owner && el.dataset.info) show(el);
+    else hide();
+  });
+  document.addEventListener('mouseover', (e) => {
+    if (matchMedia('(pointer: coarse)').matches) return;
+    const el = (e.target as HTMLElement).closest<HTMLElement>('[data-info]');
+    if (el && el.dataset.info) {
+      if (el !== owner) show(el);
+    } else if (owner) hide();
+  });
+  window.addEventListener('scroll', hide, true);
 }

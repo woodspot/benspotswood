@@ -21,7 +21,15 @@ export type Op =
   | { op: 'steal'; res: Resource; amt: number }
   | { op: 'build'; building: string } // put a building in one of your slots
   | { op: 'demolish' } // destroy the enemy's most valuable building
-  | { op: 'again' }; // play another card this turn
+  | { op: 'again' } // play another card this turn
+  | { op: 'burn'; amt: number; turns: number } // enemy Tower loses amt at the start of each of their next `turns` turns
+  | { op: 'ward'; amt: number } // absorbs enemy harm to your Tower and Wall
+  | { op: 'curse'; count: number } // shuffle Rubble into the enemy deck
+  | { op: 'if'; cond: Condition; then: Op[] }
+  | { op: 'choose'; options: Op[][] }; // the player picks one option when playing
+
+/** foeNoWall: enemy Wall is 0 · behind: your Tower is lower · combo: you already played a card this turn */
+export type Condition = 'foeNoWall' | 'behind' | 'combo';
 
 export type Rarity = 'common' | 'uncommon' | 'rare';
 
@@ -34,6 +42,9 @@ export interface CardDef {
   ops: Op[];
   flavor?: string;
   upgraded?: boolean;
+  text?: string[]; // rules text override (for cards with no ops)
+  exhaust?: boolean; // leaves the deck when played instead of going to the discard pile
+  curse?: boolean; // junk card: never offered in drafts or rewards
 }
 
 /** A building sits in a slot and runs its ops at the start of each of its owner's turns. */
@@ -52,6 +63,8 @@ export interface StartBonus {
   gen?: Partial<Record<Resource, number>>;
   res?: Partial<Record<Resource, number>>;
   buildings?: string[];
+  ward?: number;
+  curseFoe?: number; // Rubble shuffled into the enemy's deck
 }
 
 export interface Player {
@@ -66,10 +79,13 @@ export interface Player {
   deck: string[]; // draw pile (top = end)
   discard: string[];
   buildings: string[]; // building ids, oldest first
+  ward: number;
+  burn: number; // Tower lost at the start of each turn…
+  burnTurns: number; // …for this many more turns
 }
 
 export type Action =
-  | { kind: 'play'; index: number }
+  | { kind: 'play'; index: number; choice?: number }
   | { kind: 'discard'; index: number };
 
 export interface LogEntry {
@@ -92,6 +108,7 @@ export interface GameState {
   log: LogEntry[];
   lastAction?: { player: 0 | 1; kind: 'play' | 'discard'; cardId: string };
   event: string | null; // id of the active shared event, if any
+  chain: number; // cards the current player has played this turn (for Combo)
 }
 
 export interface Rules {

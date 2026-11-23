@@ -1,4 +1,4 @@
-import { building, card } from './cards';
+import { building, card, choiceOf } from './cards';
 import { applyOp, costOf, legalActions, modsFor, step } from './engine';
 import { DEFAULT_RULES, RESOURCES } from './types';
 import type { Action, GameState, Player, Rules } from './types';
@@ -17,6 +17,10 @@ function sideValue(p: Player, rules: Rules): number {
   let v = towerValue(p.tower, rules);
   for (const id of p.buildings) v += building(id).worth;
   v += Math.min(p.wall, 40) * 1.1 + Math.max(0, p.wall - 40) * 0.3;
+  v += Math.min(p.ward, 30) * 1.3;
+  v -= p.burn * p.burnTurns * 2.6; // Tower damage still to come
+  const rubble = [...p.hand, ...p.deck, ...p.discard].filter((id) => id === 'rubble').length;
+  v -= rubble * 5;
   for (const r of RESOURCES) {
     v += p.gen[r] * 11;
     v += Math.min(p.res[r], 40) * 0.5 + Math.max(0, p.res[r] - 40) * 0.15;
@@ -35,11 +39,15 @@ export function evaluate(state: GameState, me: 0 | 1, rules: Rules = DEFAULT_RUL
 /** Rough worth of holding a card: its effect, discounted by how long until we can afford it. */
 function cardWorth(state: GameState, me: 0 | 1, cardId: string, rules: Rules): number {
   const c = card(cardId);
-  const sim = structuredClone(state);
-  const p = sim.players[me];
+  if (c.curse) return -6; // junk: always worth getting rid of
   const mods = modsFor(state, me);
-  for (const o of c.ops) applyOp(p, sim.players[1 - me], o, mods, rules);
-  let gain = evaluate(sim, me, rules) - evaluate(state, me, rules);
+  const options = choiceOf(c)?.options.length ?? 1;
+  let gain = -Infinity;
+  for (let choice = 0; choice < options; choice++) {
+    const sim = structuredClone(state);
+    for (const o of c.ops) applyOp(sim.players[me], sim.players[1 - me], o, mods, rules, { chain: 0, choice });
+    gain = Math.max(gain, evaluate(sim, me, rules) - evaluate(state, me, rules));
+  }
   if (c.ops.some((o) => o.op === 'again')) gain += 4;
   const real = state.players[me];
   const short = costOf(state, me, cardId) - real.res[c.type];

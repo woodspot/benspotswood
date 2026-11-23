@@ -1,4 +1,4 @@
-import type { BuildingDef, CardDef, Op, Rarity, Resource } from './types';
+import type { BuildingDef, CardDef, Condition, Op, Rarity, Resource } from './types';
 
 const dmg = (amt: number): Op => ({ op: 'damage', amt });
 const tower = (amt: number, target: 'self' | 'enemy' = 'self'): Op => ({ op: 'tower', amt, target });
@@ -9,6 +9,11 @@ const steal = (r: Resource, amt: number): Op => ({ op: 'steal', res: r, amt });
 const again: Op = { op: 'again' };
 const build = (building: string): Op => ({ op: 'build', building });
 const demolish: Op = { op: 'demolish' };
+const burn = (amt: number, turns: number): Op => ({ op: 'burn', amt, turns });
+const ward = (amt: number): Op => ({ op: 'ward', amt });
+const curse = (count: number): Op => ({ op: 'curse', count });
+const when = (cond: Condition, ...then: Op[]): Op => ({ op: 'if', cond, then });
+const choose = (...options: Op[][]): Op => ({ op: 'choose', options });
 
 export const CARDS: CardDef[] = [
   // ── Stone: building ──────────────────────────────────────────
@@ -62,7 +67,35 @@ export const CARDS: CardDef[] = [
   { id: 'b-ballista', name: 'Ballista Tower', type: 'steel', cost: 12, copies: 1, ops: [build('ballista')] },
   { id: 'sappers', name: "Sappers' Charge", type: 'steel', cost: 5, copies: 2, ops: [demolish, dmg(3)], flavor: 'Bring it all down.' },
   { id: 'dispel', name: 'Dispel', type: 'mana', cost: 4, copies: 1, ops: [demolish, again] },
+
+  // ── Choices, combos, wards ───────────────────────────────────
+  { id: 'scaffold', name: 'Scaffolding', type: 'stone', cost: 3, copies: 2, ops: [choose([wall(5)], [tower(2), again])], flavor: 'Up or out?' },
+  { id: 'bulwark', name: 'Bulwark', type: 'stone', cost: 6, copies: 1, ops: [ward(7), wall(3)] },
+  { id: 'renovate', name: 'Renovation', type: 'stone', cost: 8, copies: 1, ops: [tower(4), when('behind', tower(5))], flavor: 'Rebuild bigger.' },
+  { id: 'glyph', name: 'Warding Glyph', type: 'mana', cost: 3, copies: 2, ops: [ward(5), again] },
+  { id: 'echo', name: 'Echo', type: 'mana', cost: 2, copies: 2, ops: [tower(1), when('combo', tower(-4, 'enemy'))], flavor: 'Magic answers magic.' },
+  { id: 'pact', name: 'Twin Pact', type: 'mana', cost: 5, copies: 2, ops: [choose([tower(-5, 'enemy')], [tower(6)])] },
+  { id: 'blitz', name: 'Blitz', type: 'steel', cost: 3, copies: 2, ops: [dmg(3), when('combo', dmg(4))] },
+  { id: 'flank', name: 'Flanking Strike', type: 'steel', cost: 5, copies: 2, ops: [dmg(5), when('foeNoWall', dmg(5))], flavor: 'Go around.' },
+  { id: 'pillage', name: 'Pillage', type: 'steel', cost: 6, copies: 1, ops: [choose([steal('stone', 7)], [steal('mana', 7)], [dmg(7)])] },
+  { id: 'b-obelisk', name: 'Ward Obelisk', type: 'mana', cost: 8, copies: 1, ops: [build('obelisk')] },
+  { id: 'b-den', name: "Thieves' Den", type: 'steel', cost: 9, copies: 1, ops: [build('den')] },
+
+  // ── Hex (unlockable): burns and curses ───────────────────────
+  { id: 'hexfire', name: 'Hexfire', type: 'mana', cost: 4, copies: 2, ops: [burn(2, 3)], flavor: 'It never quite goes out.' },
+  { id: 'plague', name: 'Wasting Plague', type: 'mana', cost: 9, copies: 1, ops: [burn(3, 4), gen('stone', -1, 'enemy')] },
+  { id: 'firearrows', name: 'Fire Arrows', type: 'steel', cost: 4, copies: 2, ops: [dmg(3), burn(1, 3)] },
+  { id: 'rubblecart', name: 'Rubble Cart', type: 'stone', cost: 4, copies: 2, ops: [wall(-3, 'enemy'), curse(2)] },
+  { id: 'marauders', name: 'Marauders', type: 'steel', cost: 7, copies: 1, ops: [dmg(6), curse(2)] },
+
+  // ── Junk ─────────────────────────────────────────────────────
+  {
+    id: 'rubble', name: 'Rubble', type: 'stone', cost: 0, copies: 0, ops: [], curse: true, exhaust: true,
+    text: ['Does nothing', 'Leaves your deck when played'], flavor: 'Someone dumped this in your keep.',
+  },
 ];
+
+export const HEX_CARDS = ['hexfire', 'plague', 'firearrows', 'rubblecart', 'marauders'];
 
 export const BUILDINGS: BuildingDef[] = [
   { id: 'lodge', name: "Masons' Lodge", icon: '🧱', ops: [wall(2)], worth: 14 },
@@ -71,6 +104,8 @@ export const BUILDINGS: BuildingDef[] = [
   { id: 'beacon', name: 'Arcane Beacon', icon: '🗼', ops: [tower(-1, 'enemy')], worth: 20 },
   { id: 'catapult', name: 'Catapult', icon: '☄️', ops: [dmg(2)], worth: 18 },
   { id: 'ballista', name: 'Ballista Tower', icon: '🏹', ops: [dmg(3), wall(1)], worth: 26 },
+  { id: 'obelisk', name: 'Ward Obelisk', icon: '🗿', ops: [ward(2)], worth: 15 },
+  { id: 'den', name: "Thieves' Den", icon: '🗝️', ops: [steal('stone', 1), steal('mana', 1), steal('steel', 1)], worth: 22 },
 ];
 
 const BASE_CARDS: Record<string, CardDef> = Object.fromEntries(CARDS.map((c) => [c.id, c]));
@@ -90,16 +125,29 @@ function upgradeOps(ops: Op[]): Op[] {
       case 'wall':
       case 'res':
       case 'steal':
+      case 'ward':
         return { ...o, amt: boost(o.amt) };
+      case 'burn':
+        return { ...o, amt: o.amt + 1 };
       case 'build':
         return { ...o, building: o.building + '+' };
+      case 'if':
+        return { ...o, then: upgradeOps(o.then) };
+      case 'choose':
+        return { ...o, options: o.options.map(upgradeOps) };
       default:
         return o;
     }
   });
 }
 
-const scalable = (ops: Op[]) => ops.some((o) => ['damage', 'tower', 'wall', 'res', 'steal', 'build'].includes(o.op));
+const scalable = (ops: Op[]): boolean =>
+  ops.some(
+    (o) =>
+      ['damage', 'tower', 'wall', 'res', 'steal', 'build', 'ward', 'burn'].includes(o.op) ||
+      (o.op === 'if' && scalable(o.then)) ||
+      (o.op === 'choose' && o.options.some(scalable)),
+  );
 
 const upgradeCache: Record<string, CardDef> = {};
 const upgradeBuildingCache: Record<string, BuildingDef> = {};
@@ -136,16 +184,26 @@ export function building(id: string): BuildingDef {
   return b;
 }
 
-export const canUpgrade = (id: string) => !id.endsWith('+');
+export const canUpgrade = (id: string) => !id.endsWith('+') && !card(id).curse;
 
 export function rarity(id: string): Rarity {
   const c = card(id.replace(/\+$/, ''));
   return c.cost <= 4 ? 'common' : c.cost <= 9 ? 'uncommon' : 'rare';
 }
 
-/** Every card, with its copy count: used for Quick Battle and as the base AI deck. */
+// ── Locked content: unlockable cards stay out of decks and offers until earned ──
+let lockedCards = new Set<string>();
+export function setLockedCards(ids: string[]): void {
+  lockedCards = new Set(ids);
+}
+/** Cards that can appear in decks, drafts and rewards right now. */
+export function availableCards(): CardDef[] {
+  return CARDS.filter((c) => !c.curse && !lockedCards.has(c.id));
+}
+
+/** Every available card, with its copy count: used for Quick Battle. */
 export function standardDeck(): string[] {
-  return CARDS.flatMap((c) => Array.from({ length: c.copies }, () => c.id));
+  return availableCards().flatMap((c) => Array.from({ length: c.copies }, () => c.id));
 }
 
 /** A plain starting deck for draft and campaign play. */
@@ -177,17 +235,48 @@ export function describeOp(o: Op): string {
       return `Steal ${o.amt} ${RES_LABEL[o.res]}`;
     case 'build': {
       const b = building(o.building);
-      return `Build ${b.icon} ${b.name}: ${b.ops.map(describeOp).join(', ')} each turn`;
+      return `${b.icon} Each turn: ${b.ops.map(describeOp).join(', ')}`;
     }
     case 'demolish':
       return 'Destroy an enemy building';
     case 'again':
       return 'Play again';
+    case 'burn':
+      return `Burn ${o.amt} for ${o.turns} turns`;
+    case 'ward':
+      return `+${o.amt} Ward`;
+    case 'curse':
+      return `${o.count} Rubble into enemy deck`;
+    case 'if':
+      return `${COND_LABEL[o.cond]}: ${o.then.map(describeOp).join(', ')}`;
+    case 'choose':
+      return `Choose: ${o.options.map(describeOption).join(' or ')}`;
   }
 }
 
+export const COND_LABEL: Record<Condition, string> = {
+  foeNoWall: 'If enemy has no Wall',
+  behind: 'If your Tower is lower',
+  combo: 'Combo',
+};
+
+/** Text for one option of a Choose card. */
+export function describeOption(opt: Op[]): string {
+  return opt.map(describeOp).join(', ');
+}
+
+const NUMS = ['①', '②', '③', '④'];
+
 export function describeCard(c: CardDef): string[] {
-  return c.ops.map(describeOp);
+  if (c.text) return c.text;
+  return c.ops.flatMap((o) =>
+    o.op === 'choose' ? ['Choose one:', ...o.options.map((opt, i) => `${NUMS[i]} ${describeOption(opt)}`)] : [describeOp(o)],
+  );
+}
+
+/** The Choose op on a card, if it has one. */
+export function choiceOf(c: CardDef): Extract<Op, { op: 'choose' }> | undefined {
+  return c.ops.find((o): o is Extract<Op, { op: 'choose' }> => o.op === 'choose');
 }
 
 export { RES_LABEL, GEN_LABEL };

@@ -2,19 +2,21 @@ import type { Difficulty } from './ai';
 import { abandonBattle, getState, initBattleChrome, startBattle } from './battle';
 import {
   battleSetup, camp, canCamp, chooseNode, currentNode, finishBattle, FLOORS, MIN_DECK, newRun, NODE_INFO,
-  takeReward, takeTreasure, type RunState,
+  SIEGE_RULES, takeReward, takeTreasure, type RunState,
 } from './campaign';
-import { card, STARTER_DECK } from './cards';
+import { card, setLockedCards, STARTER_DECK } from './cards';
+import { applyRun, isUnlocked, lockedContent, newMeta, nextUnlock, UNLOCKS, type Meta, type RunResult } from './meta';
+import { setLockedRelics } from './relics';
 import { aiDeck, DRAFT_PICKS, offerCards, type RngHolder } from './draft';
 import { FACTIONS, FACTION_MAP, type FactionId } from './factions';
 import { RELIC_MAP } from './relics';
 import { sfx, unlock } from './sound';
 import { DEFAULT_RULES } from './types';
 import type { GameState } from './types';
-import { $, bind, cardFace, esc, hideDialog, relicChip, relicTile, showDialog } from './ui';
+import { $, bind, cardFace, esc, hideDialog, initInfoPops, relicChip, relicTile, showDialog } from './ui';
 
 const rules = DEFAULT_RULES;
-type Mode = 'quick' | 'draft' | 'campaign';
+type Mode = 'quick' | 'draft' | 'campaign' | 'progress';
 type FactionChoice = FactionId | 'random';
 
 const store = {
@@ -28,11 +30,36 @@ let difficulty: Difficulty = (store.get('difficulty') as Difficulty) ?? 'normal'
 let factionChoice: FactionChoice = (store.get('faction') as FactionChoice) ?? 'random';
 let inBattle = false;
 
-function randomFaction(except?: FactionId): FactionId {
-  const pool = FACTIONS.filter((f) => f.id !== except);
+// ── Progress between runs ──────────────────────────────────────
+
+function loadMeta(): Meta {
+  try {
+    const m = JSON.parse(store.get('meta') ?? 'null') as Meta | null;
+    return m && m.version === 1 ? { ...newMeta(), ...m } : newMeta();
+  } catch {
+    return newMeta();
+  }
+}
+let meta = loadMeta();
+let siege = Math.min(Number(store.get('siege') ?? 0), meta.siegeUnlocked);
+
+function applyLocks(): void {
+  const locked = lockedContent(meta);
+  setLockedCards(locked.cards);
+  setLockedRelics(locked.relics);
+}
+applyLocks();
+
+const factionLocked = (id: FactionId) => lockedContent(meta).factions.includes(id);
+const unlockFor = (id: FactionId) => UNLOCKS.find((u) => u.id === id);
+if (factionChoice !== 'random' && factionLocked(factionChoice)) factionChoice = 'random';
+
+/** A random faction for the player (unlocked only), or any faction for an opponent. */
+function randomFaction(except?: FactionId, forPlayer = false): FactionId {
+  const pool = FACTIONS.filter((f) => f.id !== except && !(forPlayer && factionLocked(f.id)));
   return pool[Math.floor(Math.random() * pool.length)].id;
 }
-const resolveFaction = (c: FactionChoice) => (c === 'random' ? randomFaction() : c);
+const resolveFaction = (c: FactionChoice) => (c === 'random' ? randomFaction(undefined, true) : c);
 
 // ── Campaign save ──────────────────────────────────────────────
 
@@ -49,8 +76,14 @@ const saveRun = (r: RunState) => store.set('run', JSON.stringify(r));
 // ── Shared menu pieces ─────────────────────────────────────────
 
 function factionPicker(allowRandom = true): string {
-  const tiles = FACTIONS.map(
-    (f) => `
+  const tiles = FACTIONS.map((f) =>
+    factionLocked(f.id)
+      ? `<button class="faction locked" disabled>
+      <span class="f-icon">🔒</span><b>${f.name}</b>
+      <small>${f.blurb}</small>
+      <ul><li>Unlocks at ${unlockFor(f.id)?.at ?? '?'} Renown (you have ${meta.renown})</li></ul>
+    </button>`
+      : `
     <button class="faction ${factionChoice === f.id ? 'sel' : ''}" data-act="faction" data-f="${f.id}">
       <span class="f-icon">${f.icon}</span><b>${f.name}</b>
       <small>${f.blurb}</small>
@@ -77,14 +110,52 @@ const HOW_TO = `
     <p>Your <b>Quarry</b>, <b>Sanctum</b> and <b>Barracks</b> produce ⛏️ Stone, 🔮 Mana and ⚔️ Steel each turn. Build cards cost Stone, Magic cards cost Mana, War cards cost Steel. Play one card or discard one. Damage hits the <b>Wall</b> before the Tower.</p>
     <p><b>Buildings</b> take one of your ${rules.buildingSlots} slots and act at the start of every one of your turns. A new building replaces your oldest when the slots are full.</p>
     <p>Every ${rules.eventEvery} turns a new <b>event</b> changes the rules for both sides.</p>
+    <p><b>Keywords.</b> 💠 <b>Ward</b> blocks enemy damage, spells and burns before your Wall. 🔥 <b>Burn</b> takes Tower at the start of the enemy's turns, ignoring the Wall. ⚡ <b>Combo</b> triggers if you already played a card this turn. <b>Choose</b> cards let you pick one effect. 🪨 <b>Rubble</b> is junk that leaves the deck when played.</p>
+    <p><b>On a phone</b>, tap a card to see what it would do (the +/− badges), then tap Play. Tap any icon for details.</p>
   </details>`;
+
+function siegePicker(): string {
+  if (meta.siegeUnlocked === 0) return '<p class="dim small">Beat the Iron Warden to unlock Siege levels: harder campaigns that pay more Renown.</p>';
+  const btns = Array.from({ length: meta.siegeUnlocked + 1 }, (_, i) => `<button class="diff-btn ${i === siege ? 'sel' : ''}" data-act="siege" data-s="${i}">${i === 0 ? 'Off' : i}</button>`).join('');
+  const rulesList = SIEGE_RULES.slice(1, siege + 1).map((r) => `<li>${r}</li>`).join('');
+  return `<div class="diff"><span>Siege:</span>${btns}</div>
+    ${siege ? `<ul class="siege-rules">${rulesList}<li class="dim">+${siege * 20}% Renown</li></ul>` : ''}`;
+}
+
+function renownBar(): string {
+  const next = nextUnlock(meta);
+  const prev = [...UNLOCKS].reverse().find((u) => meta.renown >= u.at)?.at ?? 0;
+  const pct = next ? Math.round(((meta.renown - prev) / (next.at - prev)) * 100) : 100;
+  return `<div class="renown">
+    <div class="renown-top"><b>⭐ ${meta.renown} Renown</b><span>${next ? `Next: ${next.icon} ${next.name} at ${next.at}` : 'Everything unlocked'}</span></div>
+    <div class="bar"><i style="width:${pct}%"></i></div>
+  </div>`;
+}
+
+function progressBody(): string {
+  const unlocks = UNLOCKS.map((u) => {
+    const got = meta.renown >= u.at;
+    return `<div class="unlock ${got ? 'got' : ''}"><span class="u-icon">${got ? u.icon : '🔒'}</span>
+      <div><b>${u.name}</b> <small>${got ? 'Unlocked' : `${u.at} Renown`}</small><p>${u.text}</p></div></div>`;
+  }).join('');
+  const levels = SIEGE_RULES.slice(1)
+    .map((r, i) => `<li class="${i + 1 <= meta.siegeUnlocked ? '' : 'dim'}"><b>Siege ${i + 1}</b> ${i + 1 <= meta.siegeUnlocked ? '' : '🔒'} ${r}</li>`)
+    .join('');
+  return `<p class="lead">Every campaign earns Renown, win or lose. Renown unlocks new content for good.</p>
+    ${renownBar()}
+    <div class="unlocks">${unlocks}</div>
+    <h3 class="pick">Siege levels</h3>
+    <p class="dim small">Win a campaign to unlock the next level. Each adds to the ones before.</p>
+    <ol class="siege-list">${levels}</ol>
+    <p class="record">Campaigns ${meta.runs} · won ${meta.wins} · best floor ${meta.bestFloor || '–'}</p>`;
+}
 
 // ── Main menu ──────────────────────────────────────────────────
 
 function showMenu(): void {
   const run = loadRun();
-  const tabs = (['quick', 'draft', 'campaign'] as Mode[])
-    .map((m) => `<button class="tab ${m === mode ? 'sel' : ''}" data-act="mode" data-m="${m}">${{ quick: '⚔️ Quick Battle', draft: '🃏 Draft', campaign: '🗺️ Campaign' }[m]}</button>`)
+  const tabs = (['quick', 'draft', 'campaign', 'progress'] as Mode[])
+    .map((m) => `<button class="tab ${m === mode ? 'sel' : ''}" data-act="mode" data-m="${m}">${{ quick: '⚔️ Quick', draft: '🃏 Draft', campaign: '🗺️ Campaign', progress: '⭐ Progress' }[m]}</button>`)
     .join('');
 
   let body = '';
@@ -96,9 +167,11 @@ function showMenu(): void {
     body = `<p class="lead">Build your deck: ${DRAFT_PICKS} times, pick 1 of 3 cards to add to an ${STARTER_DECK.length}-card starter deck. The opponent drafts too.</p>
       ${factionPicker()}${difficultyPicker()}
       <button class="primary" data-act="start-draft">Start draft</button>`;
+  } else if (mode === 'progress') {
+    body = progressBody();
   } else if (run && run.status !== 'won' && run.status !== 'lost') {
     const f = FACTION_MAP[run.faction];
-    body = `<p class="lead">Campaign in progress</p>
+    body = `<p class="lead">Campaign in progress${run.siege ? ` · Siege ${run.siege}` : ''}</p>
       <div class="run-summary">
         <div>${f.icon} <b>${f.name}</b></div>
         <div>Floor ${Math.max(1, run.floor + 1)} of ${FLOORS}</div>
@@ -108,8 +181,12 @@ function showMenu(): void {
       <button class="primary" data-act="continue-run">Continue campaign</button>
       <button class="ghost" data-act="abandon-run">Abandon and start over</button>`;
   } else {
+    const perks = [isUnlocked(meta, 'startRelic') && '🎒 choose a starting relic', isUnlocked(meta, 'startCard') && '📜 a free card pick'].filter(Boolean);
     body = `<p class="lead">Fight across ${FLOORS} floors to reach ${esc('The Iron Warden')}. Grow your deck after each win, find relics, upgrade cards at camps. You have 3 banners; each lost battle costs one.</p>
+      ${renownBar()}
       ${factionPicker(false)}
+      ${siegePicker()}
+      ${perks.length ? `<p class="dim small">You start with ${perks.join(' and ')}.</p>` : ''}
       <button class="primary" data-act="start-run">Begin campaign</button>`;
   }
 
@@ -131,10 +208,19 @@ function showMenu(): void {
       store.set('difficulty', difficulty);
       showMenu();
     },
+    siege: (el) => {
+      siege = Number(el.dataset.s);
+      store.set('siege', String(siege));
+      showMenu();
+    },
     'start-quick': () => startQuick(),
     'start-draft': () => startDraft(),
     'start-run': () => {
-      const run = newRun(factionChoice === 'random' ? randomFaction() : factionChoice);
+      const run = newRun(resolveFaction(factionChoice), undefined, {
+        siege,
+        startRelic: isUnlocked(meta, 'startRelic'),
+        startCard: isUnlocked(meta, 'startCard'),
+      });
       saveRun(run);
       unlock();
       sfx.click();
@@ -266,6 +352,7 @@ function runHeader(run: RunState): string {
   const f = FACTION_MAP[run.faction];
   return `<div class="run-header">
     <span>${f.icon} ${f.name}</span>
+    ${run.siege ? `<span class="siege-tag" data-info="${esc(SIEGE_RULES.slice(1, run.siege + 1).join(' · '))}">🏰 Siege ${run.siege}</span>` : ''}
     <span title="Banners: each lost battle costs one">${'🚩'.repeat(run.lives)}<span class="dim">${'🏳️'.repeat(Math.max(0, run.maxLives - run.lives))}</span></span>
     <span class="relics">${run.relics.map(relicChip).join('') || '<span class="dim">No relics</span>'}</span>
     <button class="ghost small" data-act="deck">Deck (${run.deck.length})</button>
@@ -345,9 +432,10 @@ function showReward(run: RunState): void {
   let pickedCard: string | null = null;
   let pickedRelic: string | null = null;
   const render = () => {
+    const start = run.floor < 0;
     const d = showDialog(
-      `<h2>Spoils of war</h2>${runHeader(run)}
-      <p class="lead">Add one card to your deck${run.pendingRelics ? ' and claim a relic' : ''}.</p>
+      `<h2>${start ? '🎒 Supplies for the road' : 'Spoils of war'}</h2>${runHeader(run)}
+      <p class="lead">${start ? 'Your Renown has earned you a head start.' : ''} ${run.pendingCards ? 'Add one card to your deck' : ''}${run.pendingCards && run.pendingRelics ? ' and claim a relic' : run.pendingRelics ? 'Claim a relic' : ''}.</p>
       <div class="offer" id="offer"></div>
       ${run.pendingRelics ? `<div class="relic-row">${run.pendingRelics.map((id) => relicTile(id, id === pickedRelic)).join('')}</div>` : ''}
       <button class="primary" data-act="take">${pickedCard || pickedRelic ? 'Take and continue' : 'Skip'}</button>`,
@@ -469,21 +557,44 @@ function showDeck(deck: string[], back: () => void): void {
 function showRunEnd(run: RunState): void {
   const won = run.status === 'won';
   if (won) sfx.win();
+  // Award Renown once per run; keep the breakdown so a reload shows the same screen.
+  let result: RunResult | null = JSON.parse(store.get('runResult') ?? 'null');
+  if (!run.scored) {
+    result = applyRun(meta, run);
+    meta = result.meta;
+    store.set('meta', JSON.stringify(meta));
+    store.set('runResult', JSON.stringify(result));
+    run.scored = true;
+    saveRun(run);
+    applyLocks();
+  }
+  const breakdown = result
+    ? `<div class="renown-gain">
+        ${result.lines.map((l) => `<div><span>${esc(l.label)}</span><b>+${l.amount}</b></div>`).join('')}
+        <div class="total"><span>Renown earned</span><b>⭐ +${result.gained}</b></div>
+      </div>
+      ${result.unlocked.map((u) => `<div class="unlock got new"><span class="u-icon">${u.icon}</span><div><b>Unlocked: ${u.name}</b><p>${u.text}</p></div></div>`).join('')}
+      ${result.newSiege ? `<div class="unlock got new"><span class="u-icon">🏰</span><div><b>Unlocked: Siege ${result.newSiege}</b><p>${SIEGE_RULES[result.newSiege]}</p></div></div>` : ''}
+      ${renownBar()}`
+    : '';
   const d = showDialog(`
     <h2 class="${won ? 'win' : 'lose'}">${won ? '👑 The Iron Warden falls!' : 'Campaign over'}</h2>
     <p class="lead">${won ? 'The last keep is yours.' : `You reached floor ${run.floor + 1} of ${FLOORS}.`}</p>
     ${runHeader(run)}
     <p class="record">Battles won ${run.battles.won} · lost ${run.battles.lost}</p>
+    ${breakdown}
     <button class="primary" data-act="new">New campaign</button>
     <button class="ghost" data-act="menu">Menu</button>`);
   bind(d, {
     new: () => {
       store.del('run');
+      store.del('runResult');
       mode = 'campaign';
       showMenu();
     },
     menu: () => {
       store.del('run');
+      store.del('runResult');
       showMenu();
     },
     deck: () => showDeck(run.deck, () => showRunEnd(run)),
@@ -512,4 +623,5 @@ $('btn-menu').addEventListener('click', () => {
 });
 
 initBattleChrome();
+initInfoPops();
 showMenu();

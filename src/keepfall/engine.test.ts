@@ -51,7 +51,7 @@ describe('engine', () => {
   it('faction perks apply', () => {
     const s = newGame({ seed: 6, first: 0, factions: ['stonewardens', 'warhost'] });
     expect(s.players[0].wall).toBe(20);
-    expect(s.players[1].res.steel).toBe(11); // 5 + Warhost bonus 6
+    expect(s.players[1].res.steel).toBe(8); // 5 + Warhost bonus 3
     s.players[0].hand[0] = 'rampart'; // Build card, cost 4 → 3 for Stonewardens
     expect(costOf(s, 0, 'rampart')).toBe(3);
     s.current = 1;
@@ -136,7 +136,7 @@ describe('engine', () => {
   });
 
   it('every card is valid', () => {
-    for (const c of CARDS) {
+    for (const c of CARDS.filter((x) => !x.curse)) {
       expect(c.cost).toBeGreaterThan(0);
       expect(c.ops.length).toBeGreaterThan(0);
     }

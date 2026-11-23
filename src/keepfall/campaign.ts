@@ -2,7 +2,7 @@ import type { Difficulty } from './ai';
 import { canUpgrade, STARTER_DECK } from './cards';
 import { aiDeck, offerCards, rand, type RngHolder } from './draft';
 import { FACTIONS, type FactionId } from './factions';
-import { RELICS } from './relics';
+import { availableRelics } from './relics';
 
 export type NodeType = 'battle' | 'elite' | 'camp' | 'treasure' | 'boss';
 
@@ -35,7 +35,28 @@ export interface RunState extends RngHolder {
   pendingCards?: string[];
   pendingRelics?: string[];
   battles: { won: number; lost: number };
+  siege?: number; // difficulty level 0–5 (missing in older saves)
+  elites?: number; // elites beaten
+  scored?: boolean; // Renown already awarded for this run
 }
+
+export interface RunOptions {
+  siege?: number;
+  startRelic?: boolean; // begin by choosing 1 of 3 relics
+  startCard?: boolean; // begin with a free pick from 3 strong cards
+}
+
+export const MAX_SIEGE = 5;
+
+/** Each Siege level adds its rule on top of the ones below it. */
+export const SIEGE_RULES = [
+  'The standard campaign.',
+  'Ordinary battles are one difficulty harder.',
+  'Every enemy has +6 Wall, +3 Tower and 3 more drafted cards.',
+  'You have only 2 banners.',
+  'Elites and the boss carry an extra relic.',
+  'The Iron Warden has +10 Tower.',
+];
 
 export const FLOORS = 9;
 export const MIN_DECK = 12;
@@ -60,24 +81,37 @@ function pickOne<T>(h: RngHolder, list: T[]): T {
 }
 
 function randomRelics(h: RngHolder, n: number, exclude: string[] = []): string[] {
-  const pool = RELICS.map((r) => r.id).filter((id) => !exclude.includes(id));
+  const pool = availableRelics()
+    .map((r) => r.id)
+    .filter((id) => !exclude.includes(id));
   const out: string[] = [];
   while (out.length < n && pool.length) out.push(pool.splice(Math.floor(rand(h) * pool.length), 1)[0]);
   return out;
 }
 
-function enemyFor(h: RngHolder, type: NodeType, floor: number): EnemySpec {
+const HARDER: Record<Difficulty, Difficulty> = { easy: 'normal', normal: 'hard', hard: 'hard' };
+
+function enemyFor(h: RngHolder, type: NodeType, floor: number, siege: number): EnemySpec {
   const faction = pickOne(h, FACTIONS).id;
+  let spec: EnemySpec;
   if (type === 'boss') {
-    return { name: BOSS_NAME, faction, difficulty: 'hard', relics: ['foundation', ...randomRelics(h, 1, ['foundation'])], picks: 18 };
+    spec = { name: BOSS_NAME, faction, difficulty: 'hard', relics: ['foundation', ...randomRelics(h, 1, ['foundation'])], picks: 18 };
+  } else if (type === 'elite') {
+    spec = { name: pickOne(h, ELITE_NAMES), faction, difficulty: 'hard', relics: randomRelics(h, 1), picks: 6 + floor * 2 };
+  } else {
+    const base: Difficulty = floor < 3 ? 'easy' : 'normal';
+    spec = { name: pickOne(h, ENEMY_NAMES), faction, difficulty: siege >= 1 ? HARDER[base] : base, relics: [], picks: 3 + floor * 2 };
   }
-  if (type === 'elite') {
-    return { name: pickOne(h, ELITE_NAMES), faction, difficulty: 'hard', relics: randomRelics(h, 1), picks: 6 + floor * 2 };
+  if (siege >= 2) {
+    spec.relics.push('siege-walls');
+    spec.picks += 3;
   }
-  return { name: pickOne(h, ENEMY_NAMES), faction, difficulty: floor < 3 ? 'easy' : 'normal', relics: [], picks: 3 + floor * 2 };
+  if (siege >= 4 && type !== 'battle') spec.relics.push(...randomRelics(h, 1, spec.relics));
+  if (siege >= 5 && type === 'boss') spec.relics.push('warden-might');
+  return spec;
 }
 
-export function generateMap(h: RngHolder): MapNode[][] {
+export function generateMap(h: RngHolder, siege = 0): MapNode[][] {
   const floors: MapNode[][] = [];
   for (let f = 0; f < FLOORS; f++) {
     let types: NodeType[];
@@ -93,27 +127,37 @@ export function generateMap(h: RngHolder): MapNode[][] {
       }
       if (!types.some((t) => t === 'battle' || t === 'elite')) types[0] = 'battle';
     }
-    floors.push(types.map((type) => (type === 'camp' || type === 'treasure' ? { type } : { type, enemy: enemyFor(h, type, f) })));
+    floors.push(types.map((type) => (type === 'camp' || type === 'treasure' ? { type } : { type, enemy: enemyFor(h, type, f, siege) })));
   }
   return floors;
 }
 
-export function newRun(faction: FactionId, seed = (Math.random() * 2 ** 32) | 0): RunState {
+export function newRun(faction: FactionId, seed = (Math.random() * 2 ** 32) | 0, opts: RunOptions = {}): RunState {
+  const siege = Math.max(0, Math.min(MAX_SIEGE, opts.siege ?? 0));
+  const lives = siege >= 3 ? 2 : 3;
   const run: RunState = {
     version: 1,
     rng: seed,
     faction,
     deck: [...STARTER_DECK],
     relics: [],
-    lives: 3,
-    maxLives: 3,
+    lives,
+    maxLives: lives,
     map: [],
     floor: -1,
     path: [],
     status: 'map',
     battles: { won: 0, lost: 0 },
+    siege,
+    elites: 0,
   };
-  run.map = generateMap(run);
+  run.map = generateMap(run, siege);
+  // Unlocked head starts: pick them before the first floor, on the reward screen.
+  if (opts.startRelic || opts.startCard) {
+    run.status = 'reward';
+    if (opts.startCard) run.pendingCards = offerCards(run, 3, 1);
+    if (opts.startRelic) run.pendingRelics = randomRelics(run, 3);
+  }
   return run;
 }
 
@@ -150,6 +194,7 @@ export function finishBattle(prev: RunState, won: boolean): RunState {
   const node = currentNode(run)!;
   if (won) {
     run.battles.won++;
+    if (node.type === 'elite') run.elites = (run.elites ?? 0) + 1;
     if (node.type === 'boss') {
       run.status = 'won';
       return run;

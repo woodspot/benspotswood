@@ -1,8 +1,8 @@
-import { building, card, standardDeck } from './cards';
+import { building, card, choiceOf, standardDeck } from './cards';
 import { EVENTS, EVENT_MAP, FACTIONS, FACTION_MAP, mergeMods, type FactionId, type Mods } from './factions';
 import { RELIC_MAP } from './relics';
 import { DEFAULT_RULES, RESOURCES } from './types';
-import type { Action, GameState, Op, Player, Rules, StartBonus, WinKind } from './types';
+import type { Action, Condition, GameState, Op, Player, Rules, StartBonus, WinKind } from './types';
 
 // ── Seeded RNG (mulberry32): same seed → same game ─────────────
 function nextRandom(state: GameState): number {
@@ -34,6 +34,7 @@ function applyStart(p: Player, b: StartBonus | undefined, rules: Rules): void {
   if (!b) return;
   p.tower += b.tower ?? 0;
   p.wall += b.wall ?? 0;
+  p.ward += b.ward ?? 0;
   for (const r of RESOURCES) {
     p.gen[r] += b.gen?.[r] ?? 0;
     p.res[r] += b.res?.[r] ?? 0;
@@ -54,6 +55,9 @@ function newPlayer(name: string, faction: FactionId, relics: string[], deck: str
     deck: [...deck],
     discard: [],
     buildings: [],
+    ward: 0,
+    burn: 0,
+    burnTurns: 0,
   };
   applyStart(p, FACTION_MAP[faction].start, rules);
   for (const r of relics) applyStart(p, RELIC_MAP[r]?.start, rules);
@@ -90,7 +94,14 @@ export function newGame(opts: NewGameOptions = {}): GameState {
     winner: null,
     log: [],
     event: null,
+    chain: 0,
   };
+  // Start bonuses that hit the other side: Rubble shuffled into their deck.
+  for (const who of [0, 1] as const) {
+    const p = state.players[who];
+    const n = (FACTION_MAP[p.faction].start.curseFoe ?? 0) + p.relics.reduce((t, r) => t + (RELIC_MAP[r]?.start?.curseFoe ?? 0), 0);
+    for (let i = 0; i < n; i++) state.players[1 - who].deck.push('rubble');
+  }
   for (const who of [0, 1] as const) {
     shuffle(state, state.players[who].deck);
     for (let i = 0; i < rules.handSize; i++) state.players[who].hand.push(draw(state, who));
@@ -123,11 +134,29 @@ function startTurn(state: GameState, rules: Rules): void {
   const mods = modsFor(state, who);
   for (const r of RESOURCES) p.res[r] += Math.max(1, p.gen[r] + mods.prodDelta);
   // Buildings deal their printed damage: card bonuses (faction, relic, event) don't stack every turn.
-  const plain = { ...mods, damageBonus: 0, spellBonus: 0 };
+  const plain = { ...mods, damageBonus: 0, spellBonus: 0, stealBonus: 0 };
   for (const id of p.buildings) {
     const b = building(id);
     for (const o of b.ops) applyOp(p, foe, o, plain, rules);
   }
+  // Burns placed on this player tick now.
+  if (p.burnTurns > 0) {
+    harmTower(p, p.burn);
+    if (--p.burnTurns === 0) p.burn = 0;
+  }
+}
+
+/** Enemy harm to a Tower: Ward soaks it up first. */
+function harmTower(t: Player, amt: number): void {
+  const soaked = Math.min(t.ward, amt);
+  t.ward -= soaked;
+  t.tower = Math.max(0, t.tower - (amt - soaked));
+}
+
+function harmWall(t: Player, amt: number): void {
+  const soaked = Math.min(t.ward, amt);
+  t.ward -= soaked;
+  t.wall = Math.max(0, t.wall - (amt - soaked));
 }
 
 /** Every `eventEvery` turns the shared event changes. */
@@ -153,7 +182,11 @@ export function legalActions(state: GameState): Action[] {
   const who = state.current;
   const out: Action[] = [];
   state.players[who].hand.forEach((id, index) => {
-    if (canAfford(state, who, id)) out.push({ kind: 'play', index });
+    if (canAfford(state, who, id)) {
+      const ch = choiceOf(card(id));
+      if (ch) ch.options.forEach((_, choice) => out.push({ kind: 'play', index, choice }));
+      else out.push({ kind: 'play', index });
+    }
     out.push({ kind: 'discard', index });
   });
   return out;
@@ -161,24 +194,48 @@ export function legalActions(state: GameState): Action[] {
 
 const NO_MODS: Required<Mods> = mergeMods();
 
-export function applyOp(me: Player, foe: Player, o: Op, mods: Required<Mods> = NO_MODS, rules: Rules = DEFAULT_RULES): void {
+/** Extra facts some ops need: cards already played this turn, and which option of a Choose card. */
+export interface OpContext {
+  chain: number;
+  choice?: number;
+}
+
+function test(cond: Condition, me: Player, foe: Player, ctx: OpContext): boolean {
+  switch (cond) {
+    case 'foeNoWall': return foe.wall === 0;
+    case 'behind': return me.tower < foe.tower;
+    case 'combo': return ctx.chain > 0;
+  }
+}
+
+export function applyOp(
+  me: Player, foe: Player, o: Op, mods: Required<Mods> = NO_MODS, rules: Rules = DEFAULT_RULES, ctx: OpContext = { chain: 0 },
+): void {
   switch (o.op) {
     case 'damage': {
-      const amt = o.amt + mods.damageBonus;
+      let amt = Math.max(0, o.amt + mods.damageBonus);
+      const soaked = Math.min(foe.ward, amt);
+      foe.ward -= soaked;
+      amt -= soaked;
       const absorbed = Math.min(foe.wall, amt);
       foe.wall -= absorbed;
       foe.tower = Math.max(0, foe.tower - (amt - absorbed));
       break;
     }
     case 'tower': {
-      const t = o.target === 'self' ? me : foe;
-      const amt = o.target === 'enemy' && o.amt < 0 ? o.amt - mods.spellBonus : o.amt;
-      t.tower = Math.max(0, t.tower + amt);
+      if (o.target === 'enemy' && o.amt < 0) harmTower(foe, -o.amt + mods.spellBonus);
+      else {
+        const t = o.target === 'self' ? me : foe;
+        t.tower = Math.max(0, t.tower + o.amt);
+      }
       break;
     }
     case 'wall': {
-      const t = o.target === 'self' ? me : foe;
-      t.wall = Math.max(0, t.wall + o.amt);
+      if (o.target === 'enemy' && o.amt < 0) harmWall(foe, -o.amt);
+      else {
+        const t = o.target === 'self' ? me : foe;
+        t.wall = Math.max(0, t.wall + o.amt);
+      }
       break;
     }
     case 'res': {
@@ -192,7 +249,7 @@ export function applyOp(me: Player, foe: Player, o: Op, mods: Required<Mods> = N
       break;
     }
     case 'steal': {
-      const taken = Math.min(foe.res[o.res], o.amt);
+      const taken = Math.min(foe.res[o.res], o.amt + mods.stealBonus);
       foe.res[o.res] -= taken;
       me.res[o.res] += taken;
       break;
@@ -211,7 +268,37 @@ export function applyOp(me: Player, foe: Player, o: Op, mods: Required<Mods> = N
     }
     case 'again':
       break;
+    case 'burn':
+      foe.burn += o.amt + mods.burnBonus;
+      foe.burnTurns = Math.max(foe.burnTurns, o.turns);
+      break;
+    case 'ward':
+      me.ward += o.amt;
+      break;
+    case 'curse':
+      // Spread evenly through the draw pile (deck order is hidden, so this is as good as random).
+      for (let i = 1; i <= o.count; i++) foe.deck.splice(Math.floor((foe.deck.length * i) / (o.count + 1)), 0, 'rubble');
+      break;
+    case 'if':
+      if (test(o.cond, me, foe, ctx)) for (const t of o.then) applyOp(me, foe, t, mods, rules, ctx);
+      break;
+    case 'choose': {
+      const opt = o.options[Math.min(o.options.length - 1, Math.max(0, ctx.choice ?? 0))];
+      for (const t of opt) applyOp(me, foe, t, mods, rules, ctx);
+      break;
+    }
   }
+}
+
+/** What playing a card would do to both players (ignoring the turn passing). Used for previews. */
+export function previewCard(state: GameState, who: 0 | 1, cardId: string, choice?: number): [Player, Player] {
+  const me = structuredClone(state.players[who]);
+  const foe = structuredClone(state.players[1 - who]);
+  const c = card(cardId);
+  me.res[c.type] -= costOf(state, who, cardId);
+  const mods = modsFor(state, who);
+  for (const o of c.ops) applyOp(me, foe, o, mods, DEFAULT_RULES, { chain: state.chain, choice });
+  return who === 0 ? [me, foe] : [foe, me];
 }
 
 function checkWinner(state: GameState, rules: Rules): void {
@@ -257,16 +344,21 @@ export function step(prev: GameState, action: Action, rules: Rules = DEFAULT_RUL
     if (!canAfford(state, who, cardId)) throw new Error(`Cannot afford ${c.name}`);
     me.res[c.type] -= costOf(state, who, cardId);
     const mods = modsFor(state, who);
-    for (const o of c.ops) applyOp(me, foe, o, mods, rules);
-    playAgain = c.ops.some((o) => o.op === 'again');
-    state.log.push({ player: who, kind: 'play', cardId, text: `${me.name} played ${c.name}` });
+    const ch = choiceOf(c);
+    const choice = ch ? Math.min(ch.options.length - 1, Math.max(0, action.choice ?? 0)) : undefined;
+    const ctx: OpContext = { chain: state.chain, choice };
+    for (const o of c.ops) applyOp(me, foe, o, mods, rules, ctx);
+    // "Play again" can sit inside the chosen option too.
+    playAgain = c.ops.some((o) => o.op === 'again') || (ch !== undefined && ch.options[choice!].some((o) => o.op === 'again'));
+    state.chain++;
+    state.log.push({ player: who, kind: 'play', cardId, text: `${me.name} played ${c.name}${ch ? ` (option ${choice! + 1})` : ''}` });
   } else {
     state.log.push({ player: who, kind: 'discard', cardId, text: `${me.name} discarded ${c.name}` });
   }
   state.lastAction = { player: who, kind: action.kind, cardId };
 
   me.hand.splice(action.index, 1);
-  me.discard.push(cardId);
+  if (!(action.kind === 'play' && c.exhaust)) me.discard.push(cardId);
   me.hand.push(draw(state, who));
 
   checkWinner(state, rules);
@@ -278,6 +370,7 @@ export function step(prev: GameState, action: Action, rules: Rules = DEFAULT_RUL
   if (!playAgain) {
     state.current = (1 - who) as 0 | 1;
     state.turn++;
+    state.chain = 0;
     maybeChangeEvent(state, rules);
     const next = state.players[state.current];
     if (next.buildings.length) {
