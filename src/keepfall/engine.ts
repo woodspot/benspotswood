@@ -1,7 +1,8 @@
-import { CARDS, card } from './cards';
+import { building, card, standardDeck } from './cards';
 import { EVENTS, EVENT_MAP, FACTIONS, FACTION_MAP, mergeMods, type FactionId, type Mods } from './factions';
+import { RELIC_MAP } from './relics';
 import { DEFAULT_RULES, RESOURCES } from './types';
-import type { Action, GameState, Op, Player, Rules, WinKind } from './types';
+import type { Action, GameState, Op, Player, Rules, StartBonus, WinKind } from './types';
 
 // ── Seeded RNG (mulberry32): same seed → same game ─────────────
 function nextRandom(state: GameState): number {
@@ -18,27 +19,44 @@ function shuffle(state: GameState, arr: string[]): void {
   }
 }
 
-function draw(state: GameState): string {
-  if (state.deck.length === 0) {
-    state.deck = state.discard;
-    state.discard = [];
-    shuffle(state, state.deck);
+/** Each player draws from their own deck; the discard pile reshuffles when it runs out. */
+function draw(state: GameState, who: 0 | 1): string {
+  const p = state.players[who];
+  if (p.deck.length === 0) {
+    p.deck = p.discard;
+    p.discard = [];
+    shuffle(state, p.deck);
   }
-  return state.deck.pop()!;
+  return p.deck.pop()!;
 }
 
-function newPlayer(name: string, faction: FactionId, rules: Rules): Player {
-  const f = FACTION_MAP[faction];
+function applyStart(p: Player, b: StartBonus | undefined, rules: Rules): void {
+  if (!b) return;
+  p.tower += b.tower ?? 0;
+  p.wall += b.wall ?? 0;
+  for (const r of RESOURCES) {
+    p.gen[r] += b.gen?.[r] ?? 0;
+    p.res[r] += b.res?.[r] ?? 0;
+  }
+  for (const id of b.buildings ?? []) addBuilding(p, id, rules);
+}
+
+function newPlayer(name: string, faction: FactionId, relics: string[], deck: string[], rules: Rules): Player {
   const p: Player = {
     name,
     faction,
-    tower: rules.startTower + (f.start.tower ?? 0),
-    wall: rules.startWall + (f.start.wall ?? 0),
+    relics: [...relics],
+    tower: rules.startTower,
+    wall: rules.startWall,
     res: { stone: rules.startRes, mana: rules.startRes, steel: rules.startRes },
     gen: { stone: rules.startGen, mana: rules.startGen, steel: rules.startGen },
     hand: [],
+    deck: [...deck],
+    discard: [],
+    buildings: [],
   };
-  for (const r of RESOURCES) p.gen[r] += f.start.gen?.[r] ?? 0;
+  applyStart(p, FACTION_MAP[faction].start, rules);
+  for (const r of relics) applyStart(p, RELIC_MAP[r]?.start, rules);
   return p;
 }
 
@@ -46,6 +64,8 @@ export interface NewGameOptions {
   seed?: number;
   names?: [string, string];
   factions?: [FactionId, FactionId];
+  decks?: [string[], string[]]; // default: the standard deck for both
+  relics?: [string[], string[]];
   first?: 0 | 1;
   rules?: Rules;
 }
@@ -57,37 +77,57 @@ export function newGame(opts: NewGameOptions = {}): GameState {
   // Pick factions from the seed if not given, so seeded games stay reproducible.
   const pick = (n: number) => FACTIONS[Math.abs(seed + n) % FACTIONS.length].id;
   const factions = opts.factions ?? [pick(0), pick(1)];
+  const decks = opts.decks ?? [standardDeck(), standardDeck()];
+  const relics = opts.relics ?? [[], []];
   const state: GameState = {
-    players: [newPlayer(names[0], factions[0], rules), newPlayer(names[1], factions[1], rules)],
+    players: [
+      newPlayer(names[0], factions[0], relics[0], decks[0], rules),
+      newPlayer(names[1], factions[1], relics[1], decks[1], rules),
+    ],
     current: 0,
     turn: 1,
-    deck: CARDS.flatMap((c) => Array.from({ length: c.copies }, () => c.id)),
-    discard: [],
     rng: seed,
     winner: null,
     log: [],
     event: null,
   };
-  shuffle(state, state.deck);
-  for (let i = 0; i < rules.handSize; i++) {
-    state.players[0].hand.push(draw(state));
-    state.players[1].hand.push(draw(state));
+  for (const who of [0, 1] as const) {
+    shuffle(state, state.players[who].deck);
+    for (let i = 0; i < rules.handSize; i++) state.players[who].hand.push(draw(state, who));
   }
   state.current = opts.first ?? (nextRandom(state) < 0.5 ? 0 : 1);
   // Going first is an advantage, so the first player skips their opening production.
   return state;
 }
 
-/** Everything currently changing the rules for player `who`: their faction plus the shared event. */
+/** Everything changing the rules for player `who`: faction, relics and the shared event. */
 export function modsFor(state: GameState, who: 0 | 1): Required<Mods> {
-  return mergeMods(FACTION_MAP[state.players[who].faction], state.event ? EVENT_MAP[state.event] : undefined);
+  const p = state.players[who];
+  return mergeMods(
+    FACTION_MAP[p.faction],
+    ...p.relics.map((r) => RELIC_MAP[r]),
+    state.event ? EVENT_MAP[state.event] : undefined,
+  );
 }
 
-/** Start of turn: each generator adds its resource. */
-function produce(state: GameState): void {
-  const p = state.players[state.current];
-  const { prodDelta } = modsFor(state, state.current);
-  for (const r of RESOURCES) p.res[r] += Math.max(1, p.gen[r] + prodDelta);
+function addBuilding(p: Player, id: string, rules: Rules): void {
+  p.buildings.push(id);
+  while (p.buildings.length > rules.buildingSlots) p.buildings.shift(); // replaces the oldest
+}
+
+/** Start of turn: generators produce, then the player's buildings act. */
+function startTurn(state: GameState, rules: Rules): void {
+  const who = state.current;
+  const p = state.players[who];
+  const foe = state.players[1 - who];
+  const mods = modsFor(state, who);
+  for (const r of RESOURCES) p.res[r] += Math.max(1, p.gen[r] + mods.prodDelta);
+  // Buildings deal their printed damage: card bonuses (faction, relic, event) don't stack every turn.
+  const plain = { ...mods, damageBonus: 0, spellBonus: 0 };
+  for (const id of p.buildings) {
+    const b = building(id);
+    for (const o of b.ops) applyOp(p, foe, o, plain, rules);
+  }
 }
 
 /** Every `eventEvery` turns the shared event changes. */
@@ -121,7 +161,7 @@ export function legalActions(state: GameState): Action[] {
 
 const NO_MODS: Required<Mods> = mergeMods();
 
-export function applyOp(me: Player, foe: Player, o: Op, mods: Required<Mods> = NO_MODS): void {
+export function applyOp(me: Player, foe: Player, o: Op, mods: Required<Mods> = NO_MODS, rules: Rules = DEFAULT_RULES): void {
   switch (o.op) {
     case 'damage': {
       const amt = o.amt + mods.damageBonus;
@@ -155,6 +195,18 @@ export function applyOp(me: Player, foe: Player, o: Op, mods: Required<Mods> = N
       const taken = Math.min(foe.res[o.res], o.amt);
       foe.res[o.res] -= taken;
       me.res[o.res] += taken;
+      break;
+    }
+    case 'build':
+      addBuilding(me, o.building, rules);
+      break;
+    case 'demolish': {
+      if (foe.buildings.length === 0) break;
+      let best = 0;
+      foe.buildings.forEach((id, i) => {
+        if (building(id).worth >= building(foe.buildings[best]).worth) best = i;
+      });
+      foe.buildings.splice(best, 1);
       break;
     }
     case 'again':
@@ -205,7 +257,7 @@ export function step(prev: GameState, action: Action, rules: Rules = DEFAULT_RUL
     if (!canAfford(state, who, cardId)) throw new Error(`Cannot afford ${c.name}`);
     me.res[c.type] -= costOf(state, who, cardId);
     const mods = modsFor(state, who);
-    for (const o of c.ops) applyOp(me, foe, o, mods);
+    for (const o of c.ops) applyOp(me, foe, o, mods, rules);
     playAgain = c.ops.some((o) => o.op === 'again');
     state.log.push({ player: who, kind: 'play', cardId, text: `${me.name} played ${c.name}` });
   } else {
@@ -214,8 +266,8 @@ export function step(prev: GameState, action: Action, rules: Rules = DEFAULT_RUL
   state.lastAction = { player: who, kind: action.kind, cardId };
 
   me.hand.splice(action.index, 1);
-  state.discard.push(cardId);
-  me.hand.push(draw(state));
+  me.discard.push(cardId);
+  me.hand.push(draw(state, who));
 
   checkWinner(state, rules);
   if (state.winner !== null) {
@@ -227,8 +279,13 @@ export function step(prev: GameState, action: Action, rules: Rules = DEFAULT_RUL
     state.current = (1 - who) as 0 | 1;
     state.turn++;
     maybeChangeEvent(state, rules);
-    produce(state);
-    checkWinner(state, rules); // production can hit the resource goal
+    const next = state.players[state.current];
+    if (next.buildings.length) {
+      const names = next.buildings.map((id) => `${building(id).icon} ${building(id).name}`).join(', ');
+      state.log.push({ player: state.current, kind: 'building', text: `${next.name}'s buildings act: ${names}` });
+    }
+    startTurn(state, rules);
+    checkWinner(state, rules); // production or buildings can end the game
     if (state.winner !== null) state.log.push({ player: state.current, kind: 'info', text: state.winReason! });
   }
   return state;

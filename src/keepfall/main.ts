@@ -1,407 +1,515 @@
-import { chooseAction, type Difficulty } from './ai';
-import { card, describeCard, GEN_LABEL, RES_LABEL } from './cards';
-import { canAfford, costOf, modsFor, newGame, step } from './engine';
-import { EVENT_MAP, FACTIONS, FACTION_MAP, type FactionId } from './factions';
-import { isMuted, setMuted, sfx, unlock } from './sound';
-import { DEFAULT_RULES, RESOURCES } from './types';
-import type { Action, GameState, Resource } from './types';
+import type { Difficulty } from './ai';
+import { abandonBattle, getState, initBattleChrome, startBattle } from './battle';
+import {
+  battleSetup, camp, canCamp, chooseNode, currentNode, finishBattle, FLOORS, MIN_DECK, newRun, NODE_INFO,
+  takeReward, takeTreasure, type RunState,
+} from './campaign';
+import { card, STARTER_DECK } from './cards';
+import { aiDeck, DRAFT_PICKS, offerCards, type RngHolder } from './draft';
+import { FACTIONS, FACTION_MAP, type FactionId } from './factions';
+import { RELIC_MAP } from './relics';
+import { sfx, unlock } from './sound';
+import { DEFAULT_RULES } from './types';
+import type { GameState } from './types';
+import { $, bind, cardFace, esc, hideDialog, relicChip, relicTile, showDialog } from './ui';
 
 const rules = DEFAULT_RULES;
-const HUMAN = 0 as const;
-const AI = 1 as const;
-const AI_DELAY = 900;
-
-const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
-
-const ICON: Record<Resource, string> = { stone: '⛏️', mana: '🔮', steel: '⚔️' };
-const TYPE_TITLE: Record<Resource, string> = { stone: 'Build', mana: 'Magic', steel: 'War' };
-
+type Mode = 'quick' | 'draft' | 'campaign';
 type FactionChoice = FactionId | 'random';
-let state: GameState;
-let difficulty: Difficulty = (localStorage.getItem('keepfall.difficulty') as Difficulty) ?? 'normal';
-let factionChoice: FactionChoice = (localStorage.getItem('keepfall.faction') as FactionChoice) ?? 'random';
-let busy = false; // true while the AI is thinking/animating
 
-// ── Rendering ──────────────────────────────────────────────────
+const store = {
+  get: (k: string) => localStorage.getItem(`keepfall.${k}`),
+  set: (k: string, v: string) => localStorage.setItem(`keepfall.${k}`, v),
+  del: (k: string) => localStorage.removeItem(`keepfall.${k}`),
+};
 
-/** A card face. With `who`, the cost shown includes that player's faction and event modifiers. */
-function cardEl(id: string, who: 0 | 1 | null): HTMLElement {
-  const c = card(id);
-  const el = document.createElement('div');
-  el.className = `card t-${c.type}`;
-  const cost = who === null ? c.cost : costOf(state, who, id);
-  const costCls = cost < c.cost ? 'cheaper' : cost > c.cost ? 'pricier' : '';
-  if (who !== null && !canAfford(state, who, id)) el.classList.add('unaffordable');
-  el.innerHTML = `
-    <div class="card-head">
-      <span class="cost ${costCls}" title="Costs ${cost} ${RES_LABEL[c.type]}">${cost}<i>${ICON[c.type]}</i></span>
-      <span class="ctype">${TYPE_TITLE[c.type]}</span>
-    </div>
-    <div class="card-name">${c.name}</div>
-    <ul class="card-text">${describeCard(c).map((t) => `<li>${t}</li>`).join('')}</ul>
-    ${c.flavor ? `<div class="flavor">${c.flavor}</div>` : ''}`;
-  return el;
-}
-
-function renderPanel(i: 0 | 1): void {
-  const p = state.players[i];
-  const f = FACTION_MAP[p.faction];
-  const prod = modsFor(state, i).prodDelta;
-  const el = $(`panel-${i}`);
-  el.classList.toggle('active', state.current === i && state.winner === null);
-  el.innerHTML = `
-    <h2>${p.name}</h2>
-    <div class="faction-tag" title="${f.perks.join(' · ')}">${f.icon} ${f.name}</div>
-    <div class="stat" data-k="tower"><span>🏰 Tower</span><b>${p.tower}</b></div>
-    <div class="stat" data-k="wall"><span>🧱 Wall</span><b>${p.wall}</b></div>
-    ${RESOURCES.map((r) => {
-      const out = Math.max(1, p.gen[r] + prod);
-      return `
-      <div class="res r-${r}" data-k="${r}">
-        <div class="res-gen" title="${GEN_LABEL[r]} level ${p.gen[r]}: +${out} ${RES_LABEL[r]} per turn">
-          <small>${GEN_LABEL[r]}</small><b>+${out}</b>
-        </div>
-        <div class="res-amt"><small>${ICON[r]} ${RES_LABEL[r]}</small><b>${p.res[r]}</b></div>
-      </div>`;
-    }).join('')}`;
-}
-
-const TOWER_MAX_PX = 260;
-const WALL_MAX = 50;
-
-function renderCastle(i: 0 | 1): void {
-  const p = state.players[i];
-  const el = $(`castle-${i}`);
-  const towerPx = Math.max(8, Math.min(1, p.tower / rules.winTower) * TOWER_MAX_PX);
-  const wallPx = Math.min(1, p.wall / WALL_MAX) * TOWER_MAX_PX * 0.6;
-  el.querySelector<HTMLElement>('.tower-body')!.style.height = `${towerPx}px`;
-  el.querySelector<HTMLElement>('.tower-num')!.textContent = String(p.tower);
-  const wall = el.querySelector<HTMLElement>('.wall')!;
-  wall.style.height = `${wallPx}px`;
-  wall.classList.toggle('gone', p.wall === 0);
-  el.querySelector<HTMLElement>('.wall-num')!.textContent = p.wall ? String(p.wall) : '';
-}
-
-function renderHands(): void {
-  const hand = $('hand');
-  hand.innerHTML = '';
-  const myTurn = state.current === HUMAN && state.winner === null && !busy;
-  state.players[HUMAN].hand.forEach((id, index) => {
-    const el = cardEl(id, HUMAN);
-    if (!myTurn) el.classList.add('waiting');
-    el.addEventListener('click', () => myTurn && act({ kind: canAfford(state, HUMAN, id) ? 'play' : 'discard', index }, el));
-    el.addEventListener('contextmenu', (e) => {
-      e.preventDefault();
-      if (myTurn) act({ kind: 'discard', index }, el);
-    });
-    const btn = document.createElement('button');
-    btn.className = 'discard-btn';
-    btn.textContent = 'Discard';
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (myTurn) act({ kind: 'discard', index }, el);
-    });
-    el.appendChild(btn);
-    hand.appendChild(el);
-  });
-
-  $('opp-hand').innerHTML = state.players[AI].hand.map(() => '<div class="card-back"></div>').join('');
-
-  const hint = $('hint');
-  if (state.winner !== null) hint.textContent = '';
-  else if (state.current === HUMAN)
-    hint.textContent = 'Your turn: tap a card to play it. Greyed-out cards are too expensive; tapping one discards it.';
-  else hint.textContent = 'Opponent is thinking…';
-}
-
-function renderPlayed(): void {
-  const slot = $('played-slot');
-  const la = state.lastAction;
-  slot.innerHTML = '';
-  if (!la) {
-    slot.innerHTML = '<div class="slot-empty">Last card played shows here</div>';
-    return;
-  }
-  const el = cardEl(la.cardId, null);
-  el.classList.add('pop', la.player === HUMAN ? 'from-me' : 'from-opp');
-  if (la.kind === 'discard') el.classList.add('discarded');
-  slot.appendChild(el);
-  const tag = document.createElement('div');
-  tag.className = 'played-by';
-  tag.textContent = `${state.players[la.player].name} ${la.kind === 'play' ? 'played' : 'discarded'}`;
-  slot.appendChild(tag);
-}
-
-function turnsUntilNextEvent(): number {
-  if (!rules.eventEvery) return Infinity;
-  return rules.eventEvery - ((state.turn - 1) % rules.eventEvery);
-}
-
-function renderEvent(): void {
-  const el = $('event-banner');
-  const e = state.event ? EVENT_MAP[state.event] : null;
-  const next = turnsUntilNextEvent();
-  const when = next === 1 ? 'next turn' : `in ${next} turns`;
-  if (e) {
-    el.innerHTML = `<b>${e.icon} ${e.name}</b> <span>${e.text}</span> <small>Changes ${when}</small>`;
-    el.className = 'event-banner on';
-  } else if (rules.eventEvery) {
-    el.innerHTML = `<small>Calm skies · first event ${when}</small>`;
-    el.className = 'event-banner';
-  } else {
-    el.className = 'event-banner hidden';
-  }
-}
-
-function renderLog(): void {
-  $('log-list').innerHTML = state.log
-    .slice(-60)
-    .reverse()
-    .map((l) => `<li class="p${l.player} ${l.kind}">${l.text}</li>`)
-    .join('');
-}
-
-function render(): void {
-  renderPanel(0);
-  renderPanel(1);
-  renderCastle(0);
-  renderCastle(1);
-  renderHands();
-  renderPlayed();
-  renderEvent();
-  renderLog();
-  const ti = $('turn-indicator');
-  ti.textContent = state.winner !== null ? 'Game over' : state.current === HUMAN ? 'Your turn' : "Opponent's turn";
-  ti.className = `turn ${state.current === HUMAN ? 'mine' : 'theirs'}`;
-  $('btn-mute').textContent = isMuted() ? '🔇' : '🔊';
-}
-
-// ── Juice: floating numbers, shakes, sounds, toasts ────────────
-
-function floatAt(target: Element, text: string, cls: string): void {
-  const r = target.getBoundingClientRect();
-  const f = document.createElement('div');
-  f.className = `float ${cls}`;
-  f.textContent = text;
-  f.style.left = `${r.left + r.width / 2}px`;
-  f.style.top = `${r.top + r.height / 2}px`;
-  document.body.appendChild(f);
-  setTimeout(() => f.remove(), 1200);
-}
-
-function toast(html: string): void {
-  const t = $('toast');
-  t.innerHTML = html;
-  t.classList.remove('show');
-  void t.offsetWidth;
-  t.classList.add('show');
-}
-
-function showDiffs(before: GameState, after: GameState): void {
-  let hit = false;
-  let built = false;
-  ([0, 1] as const).forEach((i) => {
-    const a = before.players[i];
-    const b = after.players[i];
-    const panel = $(`panel-${i}`);
-    const castle = $(`castle-${i}`);
-    const keys: [string, number, number][] = [
-      ['tower', a.tower, b.tower],
-      ['wall', a.wall, b.wall],
-      ...RESOURCES.map((r) => [r, a.res[r], b.res[r]] as [string, number, number]),
-    ];
-    for (const [k, x, y] of keys) {
-      if (x === y) continue;
-      const el = panel.querySelector(`[data-k="${k}"]`);
-      if (el) floatAt(el, y > x ? `+${y - x}` : `${y - x}`, y > x ? 'up' : 'down');
-    }
-    for (const r of RESOURCES) {
-      if (a.gen[r] !== b.gen[r]) {
-        const el = panel.querySelector(`[data-k="${r}"] .res-gen`);
-        if (el) floatAt(el, `${b.gen[r] > a.gen[r] ? '+' : ''}${b.gen[r] - a.gen[r]} ${GEN_LABEL[r]}`, b.gen[r] > a.gen[r] ? 'up' : 'down');
-        if (b.gen[r] > a.gen[r]) built = true;
-      }
-    }
-    if (b.tower < a.tower || b.wall < a.wall) {
-      hit = true;
-      castle.classList.remove('hit');
-      void castle.offsetWidth; // restart animation
-      castle.classList.add('hit');
-    }
-    if (b.tower > a.tower || b.wall > a.wall) built = true;
-  });
-
-  const la = after.lastAction;
-  if (la?.kind === 'discard') sfx.discard();
-  else if (la) {
-    sfx.card();
-    if (card(la.cardId).type === 'mana') sfx.magic();
-    if (hit) setTimeout(sfx.hit, 120);
-    else if (built) setTimeout(sfx.build, 80);
-  }
-
-  if (after.event !== before.event && after.event) {
-    const e = EVENT_MAP[after.event];
-    setTimeout(() => {
-      sfx.event();
-      toast(`<div class="toast-icon">${e.icon}</div><b>${e.name}</b><span>${e.text}</span>`);
-    }, 350);
-  }
-}
-
-// ── Game flow ──────────────────────────────────────────────────
-
-function apply(action: Action): void {
-  const before = state;
-  state = step(state, action, rules);
-  render(); // floats include the next player's start-of-turn production too
-  showDiffs(before, state);
-  if (state.winner !== null) setTimeout(showGameOver, 900);
-}
-
-function act(action: Action, el?: HTMLElement): void {
-  if (busy) return;
-  el?.classList.add(action.kind === 'play' ? 'leaving' : 'tossing');
-  busy = true;
-  setTimeout(() => {
-    busy = false;
-    apply(action);
-    maybeAiTurn();
-  }, 180);
-}
-
-function maybeAiTurn(): void {
-  if (state.winner !== null || state.current !== AI) return;
-  busy = true;
-  renderHands();
-  setTimeout(() => {
-    const action = chooseAction(state, difficulty, rules);
-    busy = false;
-    apply(action);
-    maybeAiTurn(); // play-again cards
-  }, AI_DELAY);
-}
+let mode: Mode = (store.get('mode') as Mode) ?? 'quick';
+let difficulty: Difficulty = (store.get('difficulty') as Difficulty) ?? 'normal';
+let factionChoice: FactionChoice = (store.get('faction') as FactionChoice) ?? 'random';
+let inBattle = false;
 
 function randomFaction(except?: FactionId): FactionId {
   const pool = FACTIONS.filter((f) => f.id !== except);
   return pool[Math.floor(Math.random() * pool.length)].id;
 }
+const resolveFaction = (c: FactionChoice) => (c === 'random' ? randomFaction() : c);
 
-function start(): void {
-  unlock();
-  sfx.click();
-  const mine = factionChoice === 'random' ? randomFaction() : factionChoice;
-  const theirs = randomFaction(mine);
-  state = newGame({ names: ['You', 'Opponent'], factions: [mine, theirs], rules });
-  $('overlay').classList.remove('show');
-  $('goal-label').textContent = `Tower goal ${rules.winTower}`;
-  busy = false;
-  render();
-  const f = FACTION_MAP[theirs];
-  toast(`<div class="toast-icon">${f.icon}</div><b>vs ${f.name}</b><span>${f.perks.join(' · ')}</span>`);
-  maybeAiTurn();
+// ── Campaign save ──────────────────────────────────────────────
+
+function loadRun(): RunState | null {
+  try {
+    const r = JSON.parse(store.get('run') ?? 'null') as RunState | null;
+    return r && r.version === 1 ? r : null;
+  } catch {
+    return null;
+  }
+}
+const saveRun = (r: RunState) => store.set('run', JSON.stringify(r));
+
+// ── Shared menu pieces ─────────────────────────────────────────
+
+function factionPicker(allowRandom = true): string {
+  const tiles = FACTIONS.map(
+    (f) => `
+    <button class="faction ${factionChoice === f.id ? 'sel' : ''}" data-act="faction" data-f="${f.id}">
+      <span class="f-icon">${f.icon}</span><b>${f.name}</b>
+      <small>${f.blurb}</small>
+      <ul>${f.perks.map((p) => `<li>${p}</li>`).join('')}</ul>
+    </button>`,
+  );
+  if (allowRandom)
+    tiles.push(`<button class="faction ${factionChoice === 'random' ? 'sel' : ''}" data-act="faction" data-f="random">
+      <span class="f-icon">🎲</span><b>Random</b><small>Let fate decide.</small></button>`);
+  return `<h3 class="pick">Choose your faction</h3><div class="factions">${tiles.join('')}</div>`;
 }
 
-// ── Menus ──────────────────────────────────────────────────────
+function difficultyPicker(): string {
+  return `<div class="diff"><span>Opponent:</span>
+    ${(['easy', 'normal', 'hard'] as Difficulty[])
+      .map((d) => `<button class="diff-btn ${d === difficulty ? 'sel' : ''}" data-act="diff" data-d="${d}">${d[0].toUpperCase() + d.slice(1)}</button>`)
+      .join('')}</div>`;
+}
+
+const HOW_TO = `
+  <details class="rules">
+    <summary>How to play</summary>
+    <p><b>Win</b> by raising your Tower to <b>${rules.winTower}</b>, knocking the enemy Tower to <b>0</b>, or stockpiling <b>${rules.winRes}</b> of any resource.</p>
+    <p>Your <b>Quarry</b>, <b>Sanctum</b> and <b>Barracks</b> produce ⛏️ Stone, 🔮 Mana and ⚔️ Steel each turn. Build cards cost Stone, Magic cards cost Mana, War cards cost Steel. Play one card or discard one. Damage hits the <b>Wall</b> before the Tower.</p>
+    <p><b>Buildings</b> take one of your ${rules.buildingSlots} slots and act at the start of every one of your turns. A new building replaces your oldest when the slots are full.</p>
+    <p>Every ${rules.eventEvery} turns a new <b>event</b> changes the rules for both sides.</p>
+  </details>`;
+
+// ── Main menu ──────────────────────────────────────────────────
 
 function showMenu(): void {
-  const factionTiles = [
-    ...FACTIONS.map(
-      (f) => `
-      <button class="faction ${factionChoice === f.id ? 'sel' : ''}" data-f="${f.id}">
-        <span class="f-icon">${f.icon}</span><b>${f.name}</b>
-        <small>${f.blurb}</small>
-        <ul>${f.perks.map((p) => `<li>${p}</li>`).join('')}</ul>
-      </button>`,
-    ),
-    `<button class="faction ${factionChoice === 'random' ? 'sel' : ''}" data-f="random">
-      <span class="f-icon">🎲</span><b>Random</b><small>Let fate decide.</small></button>`,
-  ].join('');
+  const run = loadRun();
+  const tabs = (['quick', 'draft', 'campaign'] as Mode[])
+    .map((m) => `<button class="tab ${m === mode ? 'sel' : ''}" data-act="mode" data-m="${m}">${{ quick: '⚔️ Quick Battle', draft: '🃏 Draft', campaign: '🗺️ Campaign' }[m]}</button>`)
+    .join('');
 
-  $('dialog').innerHTML = `
-    <h2>Keepfall</h2>
-    <p class="lead">Raise your tower, crack theirs.</p>
-    <div class="rules">
-      <p><b>Win</b> by raising your Tower to <b>${rules.winTower}</b>, knocking the enemy Tower to <b>0</b>, or stockpiling <b>${rules.winRes}</b> of any resource.</p>
-      <p>Your <b>Quarry</b>, <b>Sanctum</b> and <b>Barracks</b> produce ⛏️ Stone, 🔮 Mana and ⚔️ Steel each turn. Build cards cost Stone, Magic cards cost Mana, War cards cost Steel. Play one card or discard one. Damage hits the <b>Wall</b> before the Tower.</p>
-      <p>Every ${rules.eventEvery} turns a new <b>event</b> changes the rules for both sides.</p>
-    </div>
-    <h3 class="pick">Choose your faction</h3>
-    <div class="factions">${factionTiles}</div>
-    <div class="diff">
-      <span>Opponent:</span>
-      ${(['easy', 'normal', 'hard'] as Difficulty[])
-        .map((d) => `<button class="diff-btn ${d === difficulty ? 'sel' : ''}" data-d="${d}">${d[0].toUpperCase() + d.slice(1)}</button>`)
-        .join('')}
-    </div>
-    <button class="primary" id="btn-start">Start battle</button>`;
-  $('dialog').querySelectorAll<HTMLButtonElement>('.diff-btn').forEach((b) =>
-    b.addEventListener('click', () => {
-      difficulty = b.dataset.d as Difficulty;
-      localStorage.setItem('keepfall.difficulty', difficulty);
+  let body = '';
+  if (mode === 'quick') {
+    body = `<p class="lead">One battle with the full deck of every card.</p>
+      ${factionPicker()}${difficultyPicker()}
+      <button class="primary" data-act="start-quick">Start battle</button>`;
+  } else if (mode === 'draft') {
+    body = `<p class="lead">Build your deck: ${DRAFT_PICKS} times, pick 1 of 3 cards to add to an ${STARTER_DECK.length}-card starter deck. The opponent drafts too.</p>
+      ${factionPicker()}${difficultyPicker()}
+      <button class="primary" data-act="start-draft">Start draft</button>`;
+  } else if (run && run.status !== 'won' && run.status !== 'lost') {
+    const f = FACTION_MAP[run.faction];
+    body = `<p class="lead">Campaign in progress</p>
+      <div class="run-summary">
+        <div>${f.icon} <b>${f.name}</b></div>
+        <div>Floor ${Math.max(1, run.floor + 1)} of ${FLOORS}</div>
+        <div>${'🚩'.repeat(run.lives)}<span class="dim">${'🏳️'.repeat(run.maxLives - run.lives)}</span></div>
+        <div>${run.deck.length} cards ${run.relics.map(relicChip).join('')}</div>
+      </div>
+      <button class="primary" data-act="continue-run">Continue campaign</button>
+      <button class="ghost" data-act="abandon-run">Abandon and start over</button>`;
+  } else {
+    body = `<p class="lead">Fight across ${FLOORS} floors to reach ${esc('The Iron Warden')}. Grow your deck after each win, find relics, upgrade cards at camps. You have 3 banners; each lost battle costs one.</p>
+      ${factionPicker(false)}
+      <button class="primary" data-act="start-run">Begin campaign</button>`;
+  }
+
+  const d = showDialog(`<h2>Keepfall</h2><div class="tabs">${tabs}</div>${body}${HOW_TO}`);
+  bind(d, {
+    mode: (el) => {
+      mode = el.dataset.m as Mode;
+      store.set('mode', mode);
+      sfx.click();
       showMenu();
-    }),
-  );
-  $('dialog').querySelectorAll<HTMLButtonElement>('.faction').forEach((b) =>
-    b.addEventListener('click', () => {
-      factionChoice = b.dataset.f as FactionChoice;
-      localStorage.setItem('keepfall.faction', factionChoice);
+    },
+    faction: (el) => {
+      factionChoice = el.dataset.f as FactionChoice;
+      store.set('faction', factionChoice);
       showMenu();
-    }),
-  );
-  $('btn-start').addEventListener('click', start);
-  $('overlay').classList.add('show');
+    },
+    diff: (el) => {
+      difficulty = el.dataset.d as Difficulty;
+      store.set('difficulty', difficulty);
+      showMenu();
+    },
+    'start-quick': () => startQuick(),
+    'start-draft': () => startDraft(),
+    'start-run': () => {
+      const run = newRun(factionChoice === 'random' ? randomFaction() : factionChoice);
+      saveRun(run);
+      unlock();
+      sfx.click();
+      route(run);
+    },
+    'continue-run': () => {
+      unlock();
+      sfx.click();
+      route(loadRun()!);
+    },
+    'abandon-run': () => {
+      if (!confirm('Abandon this campaign? Progress will be lost.')) return;
+      store.del('run');
+      showMenu();
+    },
+  });
 }
 
-function gameOverText(): string {
-  const w = state.winner;
-  if (w === 'draw') return 'Both sides won at the same moment.';
-  const mine = w === HUMAN;
-  switch (state.winKind) {
+function recordResult(s: GameState): { w: number; l: number } {
+  const record = JSON.parse(store.get('record') ?? '{"w":0,"l":0}');
+  if (s.winner === 0) record.w++;
+  else if (s.winner === 1) record.l++;
+  store.set('record', JSON.stringify(record));
+  return record;
+}
+
+function outcomeText(s: GameState): string {
+  if (s.winner === 'draw') return 'Both sides won at the same moment.';
+  const mine = s.winner === 0;
+  switch (s.winKind) {
     case 'destroy': return mine ? 'You toppled the enemy tower.' : 'Your tower has fallen.';
     case 'tower': return mine ? `Your tower reached ${rules.winTower}.` : `Their tower reached ${rules.winTower}.`;
     case 'hoard': return mine ? `You stockpiled ${rules.winRes} of a resource.` : `They stockpiled ${rules.winRes} of a resource.`;
-    default: return state.winReason ?? '';
+    default: return s.winReason ?? '';
   }
 }
 
-function showGameOver(): void {
-  const w = state.winner;
-  const title = w === HUMAN ? 'Victory!' : w === 'draw' ? 'Draw' : 'Defeat';
-  if (w === HUMAN) sfx.win();
-  else sfx.lose();
-  const record = JSON.parse(localStorage.getItem('keepfall.record') ?? '{"w":0,"l":0}');
-  if (w === HUMAN) record.w++;
-  else if (w === AI) record.l++;
-  localStorage.setItem('keepfall.record', JSON.stringify(record));
-  const me = FACTION_MAP[state.players[HUMAN].faction];
-  const them = FACTION_MAP[state.players[AI].faction];
-  $('dialog').innerHTML = `
-    <h2 class="${w === HUMAN ? 'win' : 'lose'}">${title}</h2>
-    <p class="lead">${gameOverText()} (turn ${state.turn})</p>
-    <p class="record">${me.icon} ${me.name} vs ${them.icon} ${them.name} · ${difficulty}</p>
-    <p class="record">Your record: ${record.w} wins · ${record.l} losses</p>
-    <button class="primary" id="btn-again">Play again</button>
-    <button class="ghost" id="btn-menu2">Change faction or difficulty</button>`;
-  $('btn-again').addEventListener('click', start);
-  $('btn-menu2').addEventListener('click', showMenu);
-  $('overlay').classList.add('show');
+const titleFor = (s: GameState) => (s.winner === 0 ? 'Victory!' : s.winner === 'draw' ? 'Draw' : 'Defeat');
+
+// ── Quick battle ───────────────────────────────────────────────
+
+function startQuick(): void {
+  const mine = resolveFaction(factionChoice);
+  const theirs = randomFaction(mine);
+  battle({ enemyName: 'Opponent', factions: [mine, theirs], difficulty }, (s) => {
+    const rec = recordResult(s);
+    const d = showDialog(`
+      <h2 class="${s.winner === 0 ? 'win' : 'lose'}">${titleFor(s)}</h2>
+      <p class="lead">${outcomeText(s)} (turn ${s.turn})</p>
+      <p class="record">${FACTION_MAP[mine].icon} ${FACTION_MAP[mine].name} vs ${FACTION_MAP[theirs].icon} ${FACTION_MAP[theirs].name} · ${difficulty}</p>
+      <p class="record">Your record: ${rec.w} wins · ${rec.l} losses</p>
+      <button class="primary" data-act="again">Play again</button>
+      <button class="ghost" data-act="menu">Menu</button>`);
+    bind(d, { again: startQuick, menu: showMenu });
+  });
 }
 
-$('btn-menu').addEventListener('click', showMenu);
-$('btn-log').addEventListener('click', () => {
-  const log = $('log');
-  log.hidden = !log.hidden;
-});
-$('btn-mute').addEventListener('click', () => {
-  setMuted(!isMuted());
-  if (!isMuted()) {
-    unlock();
-    sfx.click();
+// ── Draft ──────────────────────────────────────────────────────
+
+interface DraftSession extends RngHolder {
+  faction: FactionId;
+  picks: string[];
+  offer: string[];
+}
+
+function startDraft(): void {
+  unlock();
+  const ds: DraftSession = { rng: (Math.random() * 2 ** 32) | 0, faction: resolveFaction(factionChoice), picks: [], offer: [] };
+  ds.offer = offerCards(ds);
+  showDraft(ds);
+}
+
+function showDraft(ds: DraftSession): void {
+  const f = FACTION_MAP[ds.faction];
+  const d = showDialog(
+    `<h2>Draft</h2>
+    <p class="lead">${f.icon} ${f.name} · Pick ${ds.picks.length + 1} of ${DRAFT_PICKS}: tap a card to add it to your deck.</p>
+    <div class="offer" id="offer"></div>
+    <div class="deck-strip">${ds.picks.length ? ds.picks.map((id) => `<span class="chip t-${card(id).type}">${esc(card(id).name)}</span>`).join('') : '<span class="dim">Your picks will appear here.</span>'}</div>
+    <p class="dim small">Plus the ${STARTER_DECK.length}-card starter deck.</p>
+    <button class="ghost" data-act="menu">Back to menu</button>`,
+    true,
+  );
+  const offer = $('offer');
+  for (const id of ds.offer) {
+    const el = cardFace(id);
+    el.classList.add('pickable');
+    el.addEventListener('click', () => {
+      sfx.card();
+      ds.picks.push(id);
+      if (ds.picks.length >= DRAFT_PICKS) return draftBattle(ds, [...STARTER_DECK, ...ds.picks], aiDeck(ds, DRAFT_PICKS));
+      ds.offer = offerCards(ds);
+      showDraft(ds);
+    });
+    offer.appendChild(el);
   }
+  bind(d, { menu: showMenu });
+}
+
+function draftBattle(ds: DraftSession, myDeck: string[], theirDeck: string[]): void {
+  const theirs = randomFaction(ds.faction);
+  battle({ enemyName: 'Rival Drafter', factions: [ds.faction, theirs], difficulty, decks: [myDeck, theirDeck] }, (s) => {
+    const rec = recordResult(s);
+    const d = showDialog(`
+      <h2 class="${s.winner === 0 ? 'win' : 'lose'}">${titleFor(s)}</h2>
+      <p class="lead">${outcomeText(s)} (turn ${s.turn})</p>
+      <p class="record">Your record: ${rec.w} wins · ${rec.l} losses</p>
+      <button class="primary" data-act="rematch">Rematch with this deck</button>
+      <button class="ghost" data-act="redraft">New draft</button>
+      <button class="ghost" data-act="menu">Menu</button>`);
+    bind(d, { rematch: () => draftBattle(ds, myDeck, theirDeck), redraft: startDraft, menu: showMenu });
+  });
+}
+
+// ── Campaign ───────────────────────────────────────────────────
+
+function route(run: RunState): void {
+  switch (run.status) {
+    case 'map': return showMap(run);
+    case 'battle': return campaignBattle(run);
+    case 'reward': return showReward(run);
+    case 'camp': return showCamp(run);
+    case 'treasure': return showTreasure(run);
+    default: return showRunEnd(run);
+  }
+}
+
+function runHeader(run: RunState): string {
+  const f = FACTION_MAP[run.faction];
+  return `<div class="run-header">
+    <span>${f.icon} ${f.name}</span>
+    <span title="Banners: each lost battle costs one">${'🚩'.repeat(run.lives)}<span class="dim">${'🏳️'.repeat(Math.max(0, run.maxLives - run.lives))}</span></span>
+    <span class="relics">${run.relics.map(relicChip).join('') || '<span class="dim">No relics</span>'}</span>
+    <button class="ghost small" data-act="deck">Deck (${run.deck.length})</button>
+  </div>`;
+}
+
+function showMap(run: RunState): void {
+  const rows = run.map
+    .map((floor, fi) => {
+      const nodes = floor
+        .map((n, ni) => {
+          const info = NODE_INFO[n.type];
+          const chosen = run.path[fi] === ni;
+          const state = fi <= run.floor ? (chosen ? 'done' : 'skipped') : fi === run.floor + 1 ? 'next' : 'locked';
+          const sub = n.enemy ? `<small>${esc(n.enemy.name)}</small>` : '';
+          return `<button class="node n-${n.type} ${state}" ${state === 'next' ? `data-act="node" data-i="${ni}"` : 'disabled'} title="${esc(info.text)}">
+            <span class="n-icon">${info.icon}</span><b>${info.label}</b>${sub}</button>`;
+        })
+        .join('');
+      return `<div class="floor"><span class="floor-num">${fi + 1}</span>${nodes}</div>`;
+    })
+    .reverse()
+    .join('');
+  const d = showDialog(
+    `<h2>Campaign</h2>${runHeader(run)}
+    <p class="lead">Choose where to go next. Hover a stop for details.</p>
+    <div class="map">${rows}</div>
+    <button class="ghost" data-act="menu">Save and quit to menu</button>`,
+    true,
+  );
+  bind(d, {
+    node: (el) => {
+      sfx.click();
+      const next = chooseNode(run, Number(el.dataset.i));
+      saveRun(next);
+      route(next);
+    },
+    deck: () => showDeck(run.deck, () => showMap(run)),
+    menu: showMenu,
+  });
+  // Keep the next choice in view on small screens.
+  d.querySelector('.node.next')?.scrollIntoView({ block: 'center' });
+}
+
+function campaignBattle(run: RunState): void {
+  const { run: r, enemy, enemyDeck } = battleSetup(run);
+  saveRun(r);
+  const node = currentNode(r)!;
+  battle(
+    {
+      enemyName: enemy.name,
+      factions: [r.faction, enemy.faction],
+      difficulty: enemy.difficulty,
+      decks: [r.deck, enemyDeck],
+      relics: [r.relics, enemy.relics],
+      intro: `${NODE_INFO[node.type].label} · floor ${r.floor + 1}${enemy.relics.length ? ' · carries ' + enemy.relics.map((x) => RELIC_MAP[x].icon).join('') : ''}`,
+    },
+    (s) => {
+      const won = s.winner === 0;
+      const next = finishBattle(r, won);
+      saveRun(next);
+      const lostLine = !won
+        ? next.status === 'lost'
+          ? '<p class="lead">Your last banner falls.</p>'
+          : `<p class="lead">You lose a banner. ${'🚩'.repeat(next.lives)} left.${node.type === 'boss' ? ' The Warden awaits your return.' : ''}</p>`
+        : '';
+      const d = showDialog(`
+        <h2 class="${won ? 'win' : 'lose'}">${titleFor(s)}</h2>
+        <p class="lead">${outcomeText(s)} (turn ${s.turn})</p>${lostLine}
+        <button class="primary" data-act="go">Continue</button>`);
+      bind(d, { go: () => route(next) });
+    },
+  );
+}
+
+function showReward(run: RunState): void {
+  let pickedCard: string | null = null;
+  let pickedRelic: string | null = null;
+  const render = () => {
+    const d = showDialog(
+      `<h2>Spoils of war</h2>${runHeader(run)}
+      <p class="lead">Add one card to your deck${run.pendingRelics ? ' and claim a relic' : ''}.</p>
+      <div class="offer" id="offer"></div>
+      ${run.pendingRelics ? `<div class="relic-row">${run.pendingRelics.map((id) => relicTile(id, id === pickedRelic)).join('')}</div>` : ''}
+      <button class="primary" data-act="take">${pickedCard || pickedRelic ? 'Take and continue' : 'Skip'}</button>`,
+      true,
+    );
+    const offer = $('offer');
+    for (const id of run.pendingCards ?? []) {
+      const el = cardFace(id);
+      el.classList.add('pickable');
+      if (id === pickedCard) el.classList.add('picked');
+      el.addEventListener('click', () => {
+        pickedCard = pickedCard === id ? null : id;
+        sfx.click();
+        render();
+      });
+      offer.appendChild(el);
+    }
+    d.querySelectorAll<HTMLElement>('[data-relic]').forEach((el) =>
+      el.addEventListener('click', () => {
+        pickedRelic = pickedRelic === el.dataset.relic ? null : el.dataset.relic!;
+        sfx.click();
+        render();
+      }),
+    );
+    bind(d, {
+      take: () => {
+        const next = takeReward(run, pickedCard, pickedRelic);
+        saveRun(next);
+        route(next);
+      },
+      deck: () => showDeck(run.deck, render),
+    });
+  };
   render();
+}
+
+function showTreasure(run: RunState): void {
+  const d = showDialog(
+    `<h2>Treasure</h2>${runHeader(run)}
+    <p class="lead">A forgotten vault. Take one relic.</p>
+    <div class="relic-row">${(run.pendingRelics ?? []).map((id) => relicTile(id)).join('')}</div>`,
+    true,
+  );
+  d.querySelectorAll<HTMLElement>('[data-relic]').forEach((el) =>
+    el.addEventListener('click', () => {
+      sfx.build();
+      const next = takeTreasure(run, el.dataset.relic!);
+      saveRun(next);
+      route(next);
+    }),
+  );
+  bind(d, { deck: () => showDeck(run.deck, () => showTreasure(run)) });
+}
+
+function showCamp(run: RunState): void {
+  const canRest = canCamp(run, { kind: 'rest' });
+  const canRemove = run.deck.length > MIN_DECK;
+  const d = showDialog(
+    `<h2>🔥 Camp</h2>${runHeader(run)}
+    <p class="lead">The fire crackles. Choose one.</p>
+    <div class="camp-options">
+      <button class="camp-opt" data-act="upgrade"><span>⚒️</span><b>Upgrade a card</b><small>Bigger numbers, permanently.</small></button>
+      <button class="camp-opt" data-act="remove" ${canRemove ? '' : 'disabled'}><span>✂️</span><b>Remove a card</b><small>${canRemove ? 'Thin your deck.' : `Deck can't go below ${MIN_DECK}.`}</small></button>
+      <button class="camp-opt" data-act="rest" ${canRest ? '' : 'disabled'}><span>🚩</span><b>Rest</b><small>${canRest ? 'Recover a banner.' : 'Banners are full.'}</small></button>
+    </div>`,
+    true,
+  );
+  bind(d, {
+    upgrade: () => pickFromDeck(run, 'upgrade'),
+    remove: () => pickFromDeck(run, 'remove'),
+    rest: () => {
+      sfx.build();
+      const next = camp(run, { kind: 'rest' });
+      saveRun(next);
+      route(next);
+    },
+    deck: () => showDeck(run.deck, () => showCamp(run)),
+  });
+}
+
+function pickFromDeck(run: RunState, kind: 'upgrade' | 'remove'): void {
+  const d = showDialog(
+    `<h2>${kind === 'upgrade' ? '⚒️ Upgrade which card?' : '✂️ Remove which card?'}</h2>
+    <p class="lead">${kind === 'upgrade' ? 'Cards show their upgraded version.' : 'Tap a card to remove it from your deck.'}</p>
+    <div class="deck-grid" id="grid"></div>
+    <button class="ghost" data-act="back">Back</button>`,
+    true,
+  );
+  const grid = $('grid');
+  const order = run.deck.map((id, i) => ({ id, i })).sort((a, b) => card(a.id).type.localeCompare(card(b.id).type) || card(a.id).cost - card(b.id).cost);
+  for (const { id, i } of order) {
+    const ok = canCamp(run, { kind, index: i });
+    const el = cardFace(kind === 'upgrade' && ok ? id + '+' : id);
+    el.classList.add(ok ? 'pickable' : 'unaffordable');
+    if (ok)
+      el.addEventListener('click', () => {
+        sfx.build();
+        const next = camp(run, { kind, index: i });
+        saveRun(next);
+        route(next);
+      });
+    grid.appendChild(el);
+  }
+  bind(d, { back: () => showCamp(run) });
+}
+
+function showDeck(deck: string[], back: () => void): void {
+  const d = showDialog(
+    `<h2>Your deck (${deck.length})</h2><div class="deck-grid" id="grid"></div><button class="primary" data-act="back">Back</button>`,
+    true,
+  );
+  const grid = $('grid');
+  [...deck]
+    .sort((a, b) => card(a).type.localeCompare(card(b).type) || card(a).cost - card(b).cost)
+    .forEach((id) => grid.appendChild(cardFace(id)));
+  bind(d, { back });
+}
+
+function showRunEnd(run: RunState): void {
+  const won = run.status === 'won';
+  if (won) sfx.win();
+  const d = showDialog(`
+    <h2 class="${won ? 'win' : 'lose'}">${won ? '👑 The Iron Warden falls!' : 'Campaign over'}</h2>
+    <p class="lead">${won ? 'The last keep is yours.' : `You reached floor ${run.floor + 1} of ${FLOORS}.`}</p>
+    ${runHeader(run)}
+    <p class="record">Battles won ${run.battles.won} · lost ${run.battles.lost}</p>
+    <button class="primary" data-act="new">New campaign</button>
+    <button class="ghost" data-act="menu">Menu</button>`);
+  bind(d, {
+    new: () => {
+      store.del('run');
+      mode = 'campaign';
+      showMenu();
+    },
+    menu: () => {
+      store.del('run');
+      showMenu();
+    },
+    deck: () => showDeck(run.deck, () => showRunEnd(run)),
+  });
+}
+
+// ── Battle wrapper ─────────────────────────────────────────────
+
+function battle(cfg: Parameters<typeof startBattle>[0], done: (s: GameState) => void): void {
+  hideDialog();
+  inBattle = true;
+  startBattle(cfg, (s) => {
+    inBattle = false;
+    done(s);
+  });
+}
+
+$('btn-menu').addEventListener('click', () => {
+  if (inBattle && getState().winner === null) {
+    const campaignNote = mode === 'campaign' && loadRun()?.status === 'battle' ? ' Your campaign is saved; the battle will restart.' : '';
+    if (!confirm(`Leave this battle?${campaignNote}`)) return;
+    abandonBattle();
+    inBattle = false;
+  }
+  showMenu();
 });
 
-state = newGame({ rules });
-render();
+initBattleChrome();
 showMenu();

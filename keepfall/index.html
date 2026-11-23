@@ -15,7 +15,7 @@
       <div id="turn-indicator" class="turn"></div>
       <button id="btn-mute" class="ghost icon" title="Sound on/off">🔊</button>
       <button id="btn-log" class="ghost">Log</button>
-      <button id="btn-menu" class="ghost">New game</button>
+      <button id="btn-menu" class="ghost">Menu</button>
     </header>
 
     <section class="opp-hand" id="opp-hand" aria-label="Opponent's hand"></section>
@@ -28,9 +28,11 @@
         <div class="castle" id="castle-0">
           <div class="tower"><div class="flag"></div><div class="tower-body"></div><div class="tower-num"></div></div>
           <div class="wall"><div class="wall-num"></div></div>
+          <div class="yard"></div>
         </div>
         <div class="played-slot" id="played-slot"></div>
         <div class="castle enemy" id="castle-1">
+          <div class="yard"></div>
           <div class="wall"><div class="wall-num"></div></div>
           <div class="tower"><div class="flag"></div><div class="tower-body"></div><div class="tower-num"></div></div>
         </div>
@@ -40,7 +42,7 @@
     </main>
 
     <section class="hand-area">
-      <div class="hint" id="hint"></div>
+      <div class="hint"><span id="hint"></span> <span class="deck-count" id="deck-count"></span></div>
       <div class="hand" id="hand"></div>
     </section>
 

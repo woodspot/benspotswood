@@ -1,4 +1,4 @@
-import type { Resource } from './types';
+import type { Resource, StartBonus } from './types';
 
 /** Rule tweaks a faction or event applies. All fields optional; they stack. */
 export interface Mods {
@@ -16,7 +16,7 @@ export interface FactionDef extends Mods {
   icon: string;
   blurb: string;
   perks: string[];
-  start: { wall?: number; tower?: number; gen?: Partial<Record<Resource, number>> };
+  start: StartBonus;
 }
 
 export const FACTIONS: FactionDef[] = [
@@ -43,8 +43,8 @@ export const FACTIONS: FactionDef[] = [
     name: 'Warhost',
     icon: '🔥',
     blurb: 'Raiders who win before the walls go up.',
-    perks: ['Start with +1 Barracks', 'All damage +1'],
-    start: { gen: { steel: 1 } },
+    perks: ['Start with +6 Steel', 'All damage +1'],
+    start: { res: { steel: 6 } },
     damageBonus: 1,
   },
 ];

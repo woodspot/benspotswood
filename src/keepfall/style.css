@@ -219,6 +219,73 @@ button { font: inherit; cursor: pointer; }
 .faction small { color: var(--dim); font-size: .78rem; }
 .faction ul { margin: 4px 0 0; padding-left: 16px; font-size: .78rem; }
 
+/* ── Buildings & relics in battle ── */
+.slots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-top: 8px; }
+.slot { height: 44px; border-radius: 8px; background: rgba(0,0,0,.25); border: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 1.1rem; cursor: help; overflow: hidden; }
+.slot small { font-size: .55rem; color: var(--dim); white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; padding: 0 2px; }
+.slot.empty { border-style: dashed; background: transparent; cursor: default; }
+.relics { display: flex; gap: 3px; flex-wrap: wrap; margin-bottom: 4px; }
+.relic { cursor: help; font-size: 1rem; }
+.yard { display: flex; flex-direction: column-reverse; gap: 2px; font-size: 1.15rem; align-self: flex-end; filter: drop-shadow(0 2px 2px rgba(0,0,0,.6)); }
+.deck-count { color: var(--dim); font-size: .75rem; margin-left: 8px; opacity: .8; }
+.card.building { box-shadow: 0 4px 12px rgba(0,0,0,.35), inset 0 0 0 1px rgba(255,255,255,.12); }
+.card.building .ctype { color: var(--accent); }
+.card.upgraded .card-name { color: #ffd98a; }
+.card.r-rare::before { content: '★'; position: absolute; right: 8px; bottom: 6px; color: var(--accent); font-size: .8rem; }
+.card.r-uncommon::before { content: '◆'; position: absolute; right: 8px; bottom: 6px; color: #9db7e8; font-size: .7rem; }
+
+/* ── Menus ── */
+.dialog.wide { width: min(900px, 96vw); }
+.dim { color: var(--dim); opacity: .7; }
+.small { font-size: .8rem; }
+.ghost.small { padding: 3px 10px; font-size: .8rem; }
+.tabs { display: flex; gap: 6px; justify-content: center; margin: 4px 0 12px; flex-wrap: wrap; }
+.tab { background: transparent; border: 1px solid var(--line); color: var(--text); border-radius: 99px; padding: 6px 16px; }
+.tab.sel { background: var(--accent); color: #1c1407; border-color: var(--accent); font-weight: 700; }
+details.rules { margin: 16px 0 0; cursor: pointer; }
+details.rules summary { font-weight: 600; padding: 8px 0; color: var(--dim); }
+.run-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; background: rgba(0,0,0,.2); border-radius: 10px; padding: 12px; margin-bottom: 16px; }
+.run-header { display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap; background: rgba(0,0,0,.2); border-radius: 99px; padding: 6px 14px; margin: 6px auto 10px; width: fit-content; max-width: 100%; }
+.offer { display: flex; justify-content: center; gap: 14px; flex-wrap: wrap; margin: 12px 0; }
+.offer .card { width: 150px; height: 200px; }
+.dialog .card { text-align: left; }
+.card.pickable { cursor: pointer; }
+.card.pickable:hover { transform: translateY(-6px); box-shadow: 0 10px 24px rgba(0,0,0,.5), 0 0 0 2px var(--accent); }
+.card.picked { transform: translateY(-6px); box-shadow: 0 0 0 3px var(--accent), 0 10px 24px rgba(0,0,0,.5); }
+.deck-strip { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; margin: 8px 0; min-height: 26px; }
+.chip { font-size: .72rem; padding: 2px 8px; border-radius: 99px; background: rgba(255,255,255,.06); border: 1px solid var(--line); }
+.chip.t-stone { border-color: var(--stone); }
+.chip.t-mana { border-color: var(--mana); }
+.chip.t-steel { border-color: var(--steel); }
+.relic-row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin: 12px 0 16px; }
+.relic-tile { width: 180px; background: rgba(0,0,0,.25); border: 2px solid var(--line); border-radius: 12px; color: var(--text); padding: 12px; display: flex; flex-direction: column; gap: 4px; align-items: center; text-align: center; }
+.relic-tile:hover { border-color: color-mix(in srgb, var(--accent) 60%, var(--line)); }
+.relic-tile.sel { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.relic-tile .r-icon { font-size: 1.8rem; }
+.relic-tile small { color: var(--dim); }
+.map { display: flex; flex-direction: column; gap: 8px; margin: 8px auto 16px; max-width: 640px; }
+.floor { display: flex; gap: 8px; justify-content: center; align-items: stretch; position: relative; }
+.floor-num { position: absolute; left: 0; top: 50%; transform: translateY(-50%); color: var(--dim); font-size: .75rem; }
+.node { width: 150px; background: rgba(0,0,0,.25); border: 2px solid var(--line); border-radius: 12px; color: var(--text); padding: 8px; display: flex; flex-direction: column; align-items: center; gap: 1px; }
+.node small { color: var(--dim); font-size: .7rem; }
+.n-icon { font-size: 1.3rem; }
+.node.next { border-color: var(--accent); cursor: pointer; animation: glow 1.6s ease-in-out infinite; }
+.node.next:hover { background: color-mix(in srgb, var(--accent) 15%, transparent); }
+.node.done { border-color: #4fae7c; background: color-mix(in srgb, #4fae7c 14%, transparent); }
+.node.skipped, .node.locked { opacity: .45; }
+.node.n-boss { width: 220px; }
+.node.n-elite b { color: #f2aaa4; }
+@keyframes glow { 50% { box-shadow: 0 0 16px color-mix(in srgb, var(--accent) 45%, transparent); } }
+.camp-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 12px 0; }
+.camp-opt { background: rgba(0,0,0,.25); border: 2px solid var(--line); border-radius: 12px; color: var(--text); padding: 16px 10px; display: flex; flex-direction: column; gap: 4px; align-items: center; }
+.camp-opt span { font-size: 1.8rem; }
+.camp-opt small { color: var(--dim); }
+.camp-opt:hover:not(:disabled) { border-color: var(--accent); }
+.camp-opt:disabled { opacity: .4; cursor: default; }
+.deck-grid { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 10px 0 16px; }
+.deck-grid .card { width: 118px; height: 160px; font-size: .9em; }
+.deck-grid .card .flavor { display: none; }
+
 /* ── Small screens ── */
 @media (max-width: 760px) {
   #app { padding: 0 8px 0; }
@@ -256,4 +323,15 @@ button { font: inherit; cursor: pointer; }
   .factions { grid-template-columns: 1fr 1fr; }
   .dialog { padding: 20px 18px; }
   .log { left: 8px; right: 8px; width: auto; }
+  .slot { height: 36px; }
+  .slot small { display: none; }
+  .offer .card { width: 104px; height: 160px; }
+  .offer { gap: 6px; }
+  .camp-options { grid-template-columns: 1fr; }
+  .node { width: 104px; padding: 6px 4px; }
+  .node.n-boss { width: 160px; }
+  .floor-num { display: none; }
+  .relic-tile { width: 100%; }
+  .deck-grid .card { width: 100px; height: 150px; }
+  .deck-count { display: block; margin: 2px 0 0; }
 }

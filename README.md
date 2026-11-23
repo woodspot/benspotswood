@@ -18,12 +18,17 @@ npm run build    # production files in dist/
 
 ## Keepfall code layout
 
-- `types.ts` – game state, card and rule types
-- `cards.ts` – every card, as data. Add or rebalance cards here.
+- `types.ts` – game state, card, building and rule types
+- `cards.ts` – every card and building, as data, plus upgrades (`archers+`) and the starter deck
+- `factions.ts` – factions and shared weather events
+- `relics.ts` – campaign relics
 - `engine.ts` – the rules: `step(state, action) → newState`. Pure, seeded, no UI.
 - `ai.ts` – opponent AI (easy / normal / hard)
-- `main.ts`, `style.css` – the screen
-- `balance.test.ts` – runs 200 AI-vs-AI games and prints win stats and card play counts
+- `draft.ts` – card offers and AI drafting
+- `campaign.ts` – campaign map, battles, rewards, camps (pure, saveable run state)
+- `battle.ts` – the battle screen; `main.ts` – menus, draft and campaign screens; `ui.ts` – shared UI helpers
+- `sound.ts` – synthesized sound effects
+- `balance.test.ts` – AI-vs-AI games for every faction pairing; prints win rates and card play counts
 
 ## Deploying
 

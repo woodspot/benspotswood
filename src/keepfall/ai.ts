@@ -1,4 +1,4 @@
-import { card } from './cards';
+import { building, card } from './cards';
 import { applyOp, costOf, legalActions, modsFor, step } from './engine';
 import { DEFAULT_RULES, RESOURCES } from './types';
 import type { Action, GameState, Player, Rules } from './types';
@@ -15,6 +15,7 @@ function towerValue(t: number, rules: Rules): number {
 
 function sideValue(p: Player, rules: Rules): number {
   let v = towerValue(p.tower, rules);
+  for (const id of p.buildings) v += building(id).worth;
   v += Math.min(p.wall, 40) * 1.1 + Math.max(0, p.wall - 40) * 0.3;
   for (const r of RESOURCES) {
     v += p.gen[r] * 11;
@@ -37,7 +38,7 @@ function cardWorth(state: GameState, me: 0 | 1, cardId: string, rules: Rules): n
   const sim = structuredClone(state);
   const p = sim.players[me];
   const mods = modsFor(state, me);
-  for (const o of c.ops) applyOp(p, sim.players[1 - me], o, mods);
+  for (const o of c.ops) applyOp(p, sim.players[1 - me], o, mods, rules);
   let gain = evaluate(sim, me, rules) - evaluate(state, me, rules);
   if (c.ops.some((o) => o.op === 'again')) gain += 4;
   const real = state.players[me];

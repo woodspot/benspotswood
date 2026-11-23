@@ -1,4 +1,4 @@
-import type { CardDef, Op, Resource } from './types';
+import type { BuildingDef, CardDef, Op, Rarity, Resource } from './types';
 
 const dmg = (amt: number): Op => ({ op: 'damage', amt });
 const tower = (amt: number, target: 'self' | 'enemy' = 'self'): Op => ({ op: 'tower', amt, target });
@@ -7,6 +7,8 @@ const res = (r: Resource, amt: number, target: 'self' | 'enemy' = 'self'): Op =>
 const gen = (r: Resource, amt: number, target: 'self' | 'enemy' = 'self'): Op => ({ op: 'gen', res: r, amt, target });
 const steal = (r: Resource, amt: number): Op => ({ op: 'steal', res: r, amt });
 const again: Op = { op: 'again' };
+const build = (building: string): Op => ({ op: 'build', building });
+const demolish: Op = { op: 'demolish' };
 
 export const CARDS: CardDef[] = [
   // ── Stone: building ──────────────────────────────────────────
@@ -50,15 +52,108 @@ export const CARDS: CardDef[] = [
   { id: 'assassin', name: 'Assassin', type: 'steel', cost: 10, copies: 1, ops: [tower(-9, 'enemy')] },
   { id: 'siege', name: 'Siege Engine', type: 'steel', cost: 12, copies: 1, ops: [dmg(17)] },
   { id: 'dragon', name: 'Dragon Rider', type: 'steel', cost: 18, copies: 1, ops: [dmg(26)] },
+
+  // ── Buildings: stay in play, act every turn ──────────────────
+  { id: 'b-lodge', name: "Masons' Lodge", type: 'stone', cost: 6, copies: 1, ops: [build('lodge')], flavor: 'The walls grow while you sleep.' },
+  { id: 'b-market', name: 'Market Square', type: 'stone', cost: 9, copies: 1, ops: [build('market')] },
+  { id: 'b-shrine', name: 'Hilltop Shrine', type: 'mana', cost: 7, copies: 1, ops: [build('shrine')] },
+  { id: 'b-beacon', name: 'Arcane Beacon', type: 'mana', cost: 10, copies: 1, ops: [build('beacon')] },
+  { id: 'b-catapult', name: 'Catapult', type: 'steel', cost: 7, copies: 1, ops: [build('catapult')] },
+  { id: 'b-ballista', name: 'Ballista Tower', type: 'steel', cost: 12, copies: 1, ops: [build('ballista')] },
+  { id: 'sappers', name: "Sappers' Charge", type: 'steel', cost: 5, copies: 2, ops: [demolish, dmg(3)], flavor: 'Bring it all down.' },
+  { id: 'dispel', name: 'Dispel', type: 'mana', cost: 4, copies: 1, ops: [demolish, again] },
 ];
 
-export const CARD_MAP: Record<string, CardDef> = Object.fromEntries(CARDS.map((c) => [c.id, c]));
+export const BUILDINGS: BuildingDef[] = [
+  { id: 'lodge', name: "Masons' Lodge", icon: '🧱', ops: [wall(2)], worth: 14 },
+  { id: 'market', name: 'Market Square', icon: '🏪', ops: [res('stone', 1), res('mana', 1), res('steel', 1)], worth: 16 },
+  { id: 'shrine', name: 'Hilltop Shrine', icon: '⛩️', ops: [tower(1)], worth: 16 },
+  { id: 'beacon', name: 'Arcane Beacon', icon: '🗼', ops: [tower(-1, 'enemy')], worth: 20 },
+  { id: 'catapult', name: 'Catapult', icon: '☄️', ops: [dmg(2)], worth: 18 },
+  { id: 'ballista', name: 'Ballista Tower', icon: '🏹', ops: [dmg(3), wall(1)], worth: 26 },
+];
+
+const BASE_CARDS: Record<string, CardDef> = Object.fromEntries(CARDS.map((c) => [c.id, c]));
+const BASE_BUILDINGS: Record<string, BuildingDef> = Object.fromEntries(BUILDINGS.map((b) => [b.id, b]));
+
+// ── Upgrades: "archers+" is Archers with ~35% bigger numbers ───
+function boost(n: number): number {
+  const d = Math.max(1, Math.round(Math.abs(n) * 0.35));
+  return n > 0 ? n + d : n - d;
+}
+
+function upgradeOps(ops: Op[]): Op[] {
+  return ops.map((o) => {
+    switch (o.op) {
+      case 'damage':
+      case 'tower':
+      case 'wall':
+      case 'res':
+      case 'steal':
+        return { ...o, amt: boost(o.amt) };
+      case 'build':
+        return { ...o, building: o.building + '+' };
+      default:
+        return o;
+    }
+  });
+}
+
+const scalable = (ops: Op[]) => ops.some((o) => ['damage', 'tower', 'wall', 'res', 'steal', 'build'].includes(o.op));
+
+const upgradeCache: Record<string, CardDef> = {};
+const upgradeBuildingCache: Record<string, BuildingDef> = {};
 
 export function card(id: string): CardDef {
-  const c = CARD_MAP[id];
+  if (id.endsWith('+')) {
+    if (upgradeCache[id]) return upgradeCache[id];
+    const base = card(id.slice(0, -1));
+    const up: CardDef = {
+      ...base,
+      id,
+      name: base.name + '+',
+      upgraded: true,
+      ops: upgradeOps(base.ops),
+      // Cards with nothing to scale (generators) get cheaper instead.
+      cost: scalable(base.ops) ? base.cost : Math.max(1, base.cost - 2),
+    };
+    return (upgradeCache[id] = up);
+  }
+  const c = BASE_CARDS[id];
   if (!c) throw new Error(`Unknown card: ${id}`);
   return c;
 }
+
+export function building(id: string): BuildingDef {
+  if (id.endsWith('+')) {
+    if (upgradeBuildingCache[id]) return upgradeBuildingCache[id];
+    const base = building(id.slice(0, -1));
+    const up: BuildingDef = { ...base, id, name: base.name + '+', ops: upgradeOps(base.ops), worth: Math.round(base.worth * 1.35) };
+    return (upgradeBuildingCache[id] = up);
+  }
+  const b = BASE_BUILDINGS[id];
+  if (!b) throw new Error(`Unknown building: ${id}`);
+  return b;
+}
+
+export const canUpgrade = (id: string) => !id.endsWith('+');
+
+export function rarity(id: string): Rarity {
+  const c = card(id.replace(/\+$/, ''));
+  return c.cost <= 4 ? 'common' : c.cost <= 9 ? 'uncommon' : 'rare';
+}
+
+/** Every card, with its copy count: used for Quick Battle and as the base AI deck. */
+export function standardDeck(): string[] {
+  return CARDS.flatMap((c) => Array.from({ length: c.copies }, () => c.id));
+}
+
+/** A plain starting deck for draft and campaign play. */
+export const STARTER_DECK: string[] = [
+  'mortar', 'mortar', 'cornerstone', 'stonecutters', 'rampart', 'watchtower',
+  'rune', 'rune', 'spark', 'leyline', 'mend', 'bolt',
+  'drums', 'drums', 'skirmish', 'recruiter', 'archers', 'warband',
+];
 
 const RES_LABEL: Record<Resource, string> = { stone: 'Stone', mana: 'Mana', steel: 'Steel' };
 const GEN_LABEL: Record<Resource, string> = { stone: 'Quarry', mana: 'Sanctum', steel: 'Barracks' };
@@ -80,6 +175,12 @@ export function describeOp(o: Op): string {
       return o.target === 'self' ? `${signed(o.amt)} ${GEN_LABEL[o.res]}` : `Enemy ${GEN_LABEL[o.res]} ${signed(o.amt)}`;
     case 'steal':
       return `Steal ${o.amt} ${RES_LABEL[o.res]}`;
+    case 'build': {
+      const b = building(o.building);
+      return `Build ${b.icon} ${b.name}: ${b.ops.map(describeOp).join(', ')} each turn`;
+    }
+    case 'demolish':
+      return 'Destroy an enemy building';
     case 'again':
       return 'Play again';
   }

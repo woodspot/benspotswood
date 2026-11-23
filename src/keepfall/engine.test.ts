@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { chooseAction } from './ai';
-import { CARDS } from './cards';
+import { CARDS, card, building, STARTER_DECK } from './cards';
 import { costOf, legalActions, newGame, step } from './engine';
 import type { GameState } from './types';
 
@@ -51,7 +51,7 @@ describe('engine', () => {
   it('faction perks apply', () => {
     const s = newGame({ seed: 6, first: 0, factions: ['stonewardens', 'warhost'] });
     expect(s.players[0].wall).toBe(20);
-    expect(s.players[1].gen.steel).toBe(3);
+    expect(s.players[1].res.steel).toBe(11); // 5 + Warhost bonus 6
     s.players[0].hand[0] = 'rampart'; // Build card, cost 4 → 3 for Stonewardens
     expect(costOf(s, 0, 'rampart')).toBe(3);
     s.current = 1;
@@ -85,6 +85,54 @@ describe('engine', () => {
     expect(costOf(s, 0, 'rampart')).toBe(1);
     s.event = 'storm';
     expect(costOf(s, 1, 'spark')).toBe(4);
+  });
+
+  it('buildings act at the start of their owner turn', () => {
+    const s = newGame({ seed: 9, first: 0, factions: ['arcanists', 'arcanists'] });
+    s.players[0].hand[0] = 'b-catapult';
+    s.players[0].res.steel = 10;
+    let n = step(s, { kind: 'play', index: 0 });
+    expect(n.players[0].buildings).toEqual(['catapult']);
+    // Opponent's turn: catapult doesn't fire yet.
+    expect(n.players[1].wall).toBe(10);
+    n.players[1].hand[0] = 'mortar';
+    n.players[1].res.stone = 5;
+    n = step(n, { kind: 'play', index: 0 }); // back to player 0: catapult fires for 2
+    expect(n.players[1].wall).toBe(13 - 2);
+  });
+
+  it('a full set of slots replaces the oldest building', () => {
+    const s = newGame({ seed: 10, first: 0, factions: ['arcanists', 'arcanists'] });
+    s.players[0].buildings = ['lodge', 'shrine', 'market'];
+    s.players[0].hand[0] = 'b-catapult';
+    s.players[0].res.steel = 10;
+    const n = step(s, { kind: 'play', index: 0 });
+    expect(n.players[0].buildings).toEqual(['shrine', 'market', 'catapult']);
+  });
+
+  it('demolish removes the most valuable enemy building', () => {
+    const s = newGame({ seed: 11, first: 0, factions: ['arcanists', 'arcanists'] });
+    s.players[1].buildings = ['lodge', 'ballista', 'shrine'];
+    s.players[0].hand[0] = 'sappers';
+    s.players[0].res.steel = 10;
+    const n = step(s, { kind: 'play', index: 0 });
+    expect(n.players[1].buildings).toEqual(['lodge', 'shrine']);
+  });
+
+  it('upgraded cards have bigger numbers', () => {
+    expect(card('archers+').name).toBe('Archers+');
+    expect(card('archers+').ops).toEqual([{ op: 'damage', amt: 8 }]);
+    expect(card('recruiter+').cost).toBe(1); // nothing to scale → cheaper
+    expect(card('b-catapult+').ops).toEqual([{ op: 'build', building: 'catapult+' }]);
+    expect(building('catapult+').ops).toEqual([{ op: 'damage', amt: 3 }]);
+  });
+
+  it('custom decks and relics are used', () => {
+    const s = newGame({ seed: 12, factions: ['arcanists', 'arcanists'], decks: [STARTER_DECK, STARTER_DECK], relics: [['gate', 'plans'], []] });
+    const p = s.players[0];
+    expect(p.hand.length + p.deck.length).toBe(STARTER_DECK.length);
+    expect(p.wall).toBe(18);
+    expect(p.buildings).toEqual(['lodge']);
   });
 
   it('every card is valid', () => {
