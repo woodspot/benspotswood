@@ -5,7 +5,7 @@ import { canAfford, costOf, modsFor, newGame, previewCard, step, type CaptainSet
 import { CAPTAIN_MAP } from './captains';
 import { hasClips, say, unlock as unlockVoice, type Part } from '../kids/audio';
 import { EVENT_MAP, FACTION_MAP, type FactionId } from './factions';
-import { isMuted, setMuted, sfx, unlock } from './sound';
+import { getVolumes, isMuted, setMuted, setStormy, setVolumes, sfx, startAmbience, stopAmbience, unlock } from './sound';
 import { DEFAULT_RULES, RESOURCES } from './types';
 import type { Action, Beat, GameState, Op, Player, Rules } from './types';
 import { hideTip, initTips, maybeTip } from './tips';
@@ -525,11 +525,12 @@ function renderLog(): void {
 // ── Juice for one effect: floating numbers, shakes and sounds ──
 
 function effects(prev: [Player, Player], next: [Player, Player], b: Beat): void {
-  let towerLoss = 0;
-  let armorHit = false;
-  let warded = false;
-  let built = false;
   let hitMe = false;
+  const loss: [number, number] = [0, 0]; // Altitude lost per ship
+  const dent: [boolean, boolean] = [false, false]; // Armor lost per ship
+  const gain: [boolean, boolean] = [false, false]; // Armor/Altitude gained per ship
+  const fitted: [boolean, boolean] = [false, false]; // a module installed
+  const shield: [boolean, boolean] = [false, false];
   ([0, 1] as const).forEach((i) => {
     const a = prev[i];
     const c = next[i];
@@ -547,10 +548,11 @@ function effects(prev: [Player, Player], next: [Player, Player], b: Beat): void 
     for (const id of a.buildings.filter((m) => !c.buildings.includes(m))) floatAt(slotsEl, `${building(id).icon} destroyed`, 'down');
     const j = junkCount(c) - junkCount(a);
     if (j > 0) floatAt(panel.querySelector('.p-head'), `+${j} 🗑️ Junk`, 'down');
-    towerLoss = Math.max(towerLoss, a.tower - c.tower);
-    if (c.wall < a.wall) armorHit = true;
-    if (c.ward > a.ward) warded = true;
-    if (c.tower > a.tower || c.wall > a.wall || c.buildings.length > a.buildings.length) built = true;
+    loss[i] = Math.max(0, a.tower - c.tower);
+    dent[i] = c.wall < a.wall;
+    gain[i] = c.tower > a.tower || c.wall > a.wall;
+    fitted[i] = c.buildings.some((m) => !a.buildings.includes(m));
+    shield[i] = c.ward > a.ward;
     if (c.tower < a.tower || c.wall < a.wall) {
       if (i === HUMAN) hitMe = true;
       ship.classList.remove('hit');
@@ -558,24 +560,38 @@ function effects(prev: [Player, Player], next: [Player, Player], b: Beat): void 
       ship.classList.add('hit');
     }
   });
+  const type = b.cardId ? card(b.cardId).type : undefined;
   if (b.kind === 'discard') sfx.discard();
   if (b.kind === 'card') {
     if (b.player === HUMAN) sfx.card();
-    if (b.cardId && card(b.cardId).type === 'mana') sfx.magic();
+    if (type === 'mana') sfx.magic(b.player);
   }
   if (b.kind === 'power' && b.player === AI) sfx.power();
   if (b.kind === 'weather') {
-    sfx.event();
+    sfx.event(isStormy(b.event));
+    setStormy(isStormy(b.event));
     toast(`<div class="toast-icon">${b.icon}</div><b>${esc(b.name)}</b><span>${esc(b.text ?? '')}</span>`);
   }
-  if (b.kind === 'income') return;
-  if (towerLoss > 0) setTimeout(() => sfx.hit(towerLoss >= 10), 120);
-  else if (armorHit) setTimeout(sfx.armor, 120);
-  else if (warded) setTimeout(sfx.ward, 80);
-  else if (built) setTimeout(sfx.build, 80);
-  if (b.kind === 'burn') sfx.burn();
+  if (b.kind === 'income') {
+    if (b.player === HUMAN) sfx.bell(); // the ship's bell: your turn
+    return;
+  }
+  // Each ship gets its own sound, placed on its side: cannon fire (or a crackling zap for
+  // Aether attacks) where Altitude drops, clanging plates where only Armor takes it,
+  // hammering where a ship is repaired, a clunk where a module is fitted.
+  for (const i of [0, 1] as const) {
+    const d = 110 + i * 60;
+    if (loss[i] > 0) setTimeout(() => (type === 'mana' || b.kind === 'relic' ? sfx.spell(loss[i], i) : sfx.hit(loss[i] + (dent[i] ? 3 : 0), i)), d);
+    else if (dent[i]) setTimeout(() => sfx.armor(i), d);
+    else if (fitted[i]) setTimeout(() => sfx.module(i), 80);
+    else if (shield[i]) setTimeout(() => sfx.ward(i), 80);
+    else if (gain[i]) setTimeout(() => sfx.build(i), 80);
+  }
+  if (b.kind === 'burn') sfx.burn(b.player);
   if (hitMe && !isMuted()) navigator.vibrate?.(40);
 }
+
+const isStormy = (event: string | null) => event === 'storm' || event === 'eclipse' || rules.eventEvery <= 2;
 
 /** Show a card in the middle of the battlefield; `spotlight` makes it big for the opponent's play. */
 function showCard(cardId: string, player: 0 | 1, discarded: boolean, spotlight: boolean): void {
@@ -659,6 +675,7 @@ async function apply(action: Action): Promise<void> {
       if (gen !== generation) return;
       if (done.winner === HUMAN) sfx.win();
       else sfx.lose();
+      stopAmbience();
       onEnd?.(done);
     }, 1400);
     return;
@@ -730,11 +747,14 @@ export function startBattle(cfg: BattleConfig, done: (s: GameState) => void): vo
       (cfg.intro ? `<span>${esc(cfg.intro)}</span>` : ''),
   );
   if (cfg.taunt) voice(cfg.taunt);
+  setStormy(rules.eventEvery <= 2);
+  startAmbience();
   maybeAiTurn();
 }
 
 /** Stop the current battle (e.g. when leaving for a menu). */
 export function abandonBattle(): void {
+  stopAmbience();
   generation++;
   busy = false;
   config = null;
@@ -780,13 +800,42 @@ export function initBattleChrome(): void {
     const el = $('log');
     el.hidden = !el.hidden;
   });
-  $('btn-mute').addEventListener('click', () => {
+  const panel = $('sound-panel');
+  const renderSound = () => {
+    const v = getVolumes();
+    $('btn-mute').textContent = isMuted() ? '🔇' : '🔊';
+    panel.innerHTML = `<b>Sound</b>
+      <label><span>Effects</span><input type="range" min="0" max="100" value="${Math.round(v.fx * 100)}" data-v="fx"></label>
+      <label><span>Atmosphere</span><input type="range" min="0" max="100" value="${Math.round(v.amb * 100)}" data-v="amb"></label>
+      <button class="ghost small" data-v="mute">${isMuted() ? '🔊 Turn sound on' : '🔇 Mute everything'}</button>`;
+  };
+  $('btn-mute').addEventListener('click', (e) => {
+    e.stopPropagation();
+    unlock();
+    renderSound();
+    panel.hidden = !panel.hidden;
+  });
+  panel.addEventListener('input', (e) => {
+    const el = e.target as HTMLInputElement;
+    const v = getVolumes();
+    if (el.dataset.v === 'fx') setVolumes(Number(el.value) / 100, v.amb);
+    if (el.dataset.v === 'amb') setVolumes(v.fx, Number(el.value) / 100);
+  });
+  panel.addEventListener('change', (e) => {
+    if ((e.target as HTMLInputElement).dataset.v === 'fx') sfx.hit(6, 1);
+  });
+  panel.addEventListener('click', (e) => {
+    if ((e.target as HTMLElement).dataset.v !== 'mute') return;
     setMuted(!isMuted());
     if (!isMuted()) {
       unlock();
       sfx.click();
+      if (config && state.winner === null) startAmbience();
     }
-    $('btn-mute').textContent = isMuted() ? '🔇' : '🔊';
+    renderSound();
+  });
+  document.addEventListener('pointerdown', (e) => {
+    if (!panel.hidden && !(e.target as HTMLElement).closest('#sound-panel, #btn-mute')) panel.hidden = true;
   });
   // Tap the battlefield to put a selected card back.
   $('field').addEventListener('click', (e) => {

@@ -729,3 +729,13 @@ html[data-cardback="gold"] .card-back { background: linear-gradient(135deg, #ffe
 @media (max-width: 760px) {
   .log { top: calc(56px + env(safe-area-inset-top)); max-height: 55vh; }
 }
+
+/* Sound settings panel (from the speaker button) */
+.sound-panel {
+  position: fixed; z-index: 30; top: calc(52px + env(safe-area-inset-top)); right: 14px; width: 240px;
+  background: var(--bg2); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px;
+  display: flex; flex-direction: column; gap: 10px; box-shadow: 0 10px 30px rgba(0,0,0,.5);
+}
+.sound-panel[hidden] { display: none; }
+.sound-panel label { display: flex; flex-direction: column; gap: 4px; font-size: .82rem; color: var(--dim); }
+.sound-panel input[type="range"] { width: 100%; accent-color: var(--accent); }
