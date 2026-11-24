@@ -27,7 +27,13 @@
 
     <section id="editor" class="menu editor" hidden>
       <h2>Contacts</h2>
-      <p class="tip">Add photos, names and your own voice. Everything stays on this device.</p>
+      <p class="tip">Add photos, names and your own voice.</p>
+      <div class="sync-card" id="sync-card"></div>
+      <div class="backup-row">
+        <button id="backup" class="add-btn">⬇️ Back up to a file</button>
+        <button id="restore" class="add-btn">⬆️ Restore</button>
+        <input id="restore-input" type="file" accept=".json,application/json" hidden />
+      </div>
       <h3 class="ed-h">Family</h3>
       <div id="family" class="family"></div>
       <button id="add-family" class="add-btn">➕ Add family member</button>

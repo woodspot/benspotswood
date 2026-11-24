@@ -123,4 +123,25 @@ export function releaseMic(): void {
   stream = null;
 }
 
+// ── Raw access for backup and family sync ─────────────────────
+
+/** Every recording as [key, blob] where key is "contactId:slot". */
+export async function allRecordings(): Promise<[string, Blob][]> {
+  await loadRecordings();
+  return [...cache.entries()];
+}
+
+export async function putRecordingKey(key: string, blob: Blob): Promise<void> {
+  await tx('readwrite', (s) => s.put(blob, key));
+  cache.set(key, blob);
+}
+
+export async function deleteRecordingKey(key: string): Promise<void> {
+  await tx('readwrite', (s) => s.delete(key));
+  cache.delete(key);
+}
+
+/** The recordings as a store that backup and sync can use. */
+export const recordingStore = { list: allRecordings, put: putRecordingKey, del: deleteRecordingKey };
+
 export const canRecord = () => !!navigator.mediaDevices?.getUserMedia && typeof MediaRecorder !== 'undefined';

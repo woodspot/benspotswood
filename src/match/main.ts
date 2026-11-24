@@ -4,6 +4,7 @@ import { bindVoiceButton, say, sfx, stopSpeech, unlock } from '../kids/audio';
 import { bindLangButtons, getLang } from '../kids/lang';
 import { burst, CONFETTI, party } from '../kids/fx';
 import { holdToExit, keepAwake, lockGestures } from '../kids/hold';
+import { syncOnOpen } from '../kids/sync';
 import {
   flip, gridFor, hideMiss, nameParts as namePartsOf, newMemory, newSame, PAIR_OPTIONS, PICS,
   type Memory, type SameRound, type Theme,
@@ -279,3 +280,5 @@ function init(): void {
 }
 
 init();
+// Family sync: if the family has newer settings (language, voice…), start again with them.
+syncOnOpen(undefined, () => !document.getElementById('menu')!.hidden && location.reload());

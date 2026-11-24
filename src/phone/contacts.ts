@@ -27,6 +27,13 @@ let extras: Extra[] = load('phone.extra', []);
 let hidden = new Set<string>(load('phone.hidden', []));
 let custom: Record<string, Custom> = load('phone.custom', {});
 
+/** Re-read everything from storage (after family sync or a restore changed it). */
+export function reloadContacts(): void {
+  extras = load('phone.extra', []);
+  hidden = new Set<string>(load('phone.hidden', []));
+  custom = load('phone.custom', {});
+}
+
 const save = () => {
   localStorage.setItem('phone.extra', JSON.stringify(extras));
   localStorage.setItem('phone.hidden', JSON.stringify([...hidden]));

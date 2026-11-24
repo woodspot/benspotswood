@@ -3,6 +3,8 @@ import { resolve } from 'node:path';
 
 export default defineConfig({
   base: '/',
+  // Local development: family sync talks to `php -S 127.0.0.1:8099 -t public` (the live site runs the PHP itself).
+  server: { proxy: { '/api': 'http://127.0.0.1:8099' } },
   build: {
     rollupOptions: {
       input: {

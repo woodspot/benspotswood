@@ -5,14 +5,16 @@ import { burst } from '../kids/fx';
 import { holdToExit, keepAwake, lockGestures } from '../kids/hold';
 import { bindLangButtons, getLang } from '../kids/lang';
 import { stayPortrait } from '../kids/orient';
+import { downloadBackup, restoreBackup } from '../kids/backup';
+import { forget, isLinked, lastSynced, link, sync, unlink } from '../kids/sync';
 import {
-  addExtra, allContacts, customOf, extraOf, EXTRA_EMOJI, findContact, isExtra, isHidden, nameOf as contactName,
+  addExtra, allContacts, customOf, reloadContacts, extraOf, EXTRA_EMOJI, findContact, isExtra, isHidden, nameOf as contactName,
   removeExtra, setCustom, setHidden, updateExtra, visibleContacts,
 } from './contacts';
 import { DTMF, KEYS, keyWord, lineFor, whoAnswers, type Contact, type Key, type LineKind } from './game';
 import {
   canRecord, countRecordings, deleteAllFor, deleteRecording, getRecording, loadRecordings, recordingFor,
-  releaseMic, saveRecording, SLOT_INFO, SLOTS, startRecording, stopRecording, type Slot,
+  recordingStore, releaseMic, saveRecording, SLOT_INFO, SLOTS, startRecording, stopRecording, type Slot,
 } from './recordings';
 
 const $ = (id: string) => document.getElementById(id)!;
@@ -285,7 +287,126 @@ let recording: Slot | null = null;
 
 const esc = (t: string) => t.replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch]!);
 
+// ── Family sync and backup ─────────────────────────────────────
+
+let syncBusy = false;
+let syncMsg = '';
+let syncTimer = 0;
+
+function ago(t: number): string {
+  if (!t) return 'not yet';
+  const s = Math.round((Date.now() - t) / 1000);
+  if (s < 60) return 'just now';
+  if (s < 3600) return `${Math.round(s / 60)} min ago`;
+  if (s < 86400) return `${Math.round(s / 3600)} h ago`;
+  return new Date(t).toLocaleDateString();
+}
+
+function renderSync(): void {
+  const card = $('sync-card');
+  if (!isLinked()) {
+    card.innerHTML = `
+      <b>☁️ Family sync</b>
+      <p>Share contacts, photos and voice recordings across all your devices, with a safe copy online.
+      Use the same family code on every device. Pick something hard to guess.</p>
+      <input id="sync-code" class="fam-name" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="Family code (6+ characters)">
+      <div class="fam-actions">
+        <button data-sync="create" ${syncBusy ? 'disabled' : ''}>✨ Start a family</button>
+        <button data-sync="join" ${syncBusy ? 'disabled' : ''}>🔗 Join my family</button>
+      </div>
+      ${syncMsg ? `<p class="sync-msg">${esc(syncMsg)}</p>` : ''}`;
+    return;
+  }
+  card.innerHTML = `
+    <b>☁️ Family sync is on</b>
+    <p>Last synced ${ago(lastSynced())}. Changes here show up on your other devices.</p>
+    <div class="fam-actions">
+      <button data-sync="now" ${syncBusy ? 'disabled' : ''}>${syncBusy ? '⏳ Syncing…' : '🔄 Sync now'}</button>
+      <button data-sync="unlink">Unlink this device</button>
+      <button data-sync="forget">🗑 Delete family data online</button>
+    </div>
+    ${syncMsg ? `<p class="sync-msg">${esc(syncMsg)}</p>` : ''}`;
+}
+
+/** Run a sync and refresh whatever is on screen if the family had newer things. */
+async function runSync(what: () => Promise<{ changedHere: boolean }>, okMsg = ''): Promise<void> {
+  syncBusy = true;
+  syncMsg = '';
+  renderSync();
+  try {
+    const r = await what();
+    if (r.changedHere) {
+      reloadContacts();
+      await loadRecordings();
+      if (!$('editor').hidden) renderEditor();
+      if (!$('screen-contacts').hidden) renderContacts();
+    }
+    syncMsg = okMsg;
+  } catch (e) {
+    syncMsg = (e as Error).message;
+  }
+  syncBusy = false;
+  renderSync();
+}
+
+/** Sync a moment after the grown-up stops changing things. */
+function syncSoon(): void {
+  if (!isLinked()) return;
+  clearTimeout(syncTimer);
+  syncTimer = window.setTimeout(() => void runSync(() => sync(recordingStore)), 1500);
+}
+
+function bindSyncAndBackup(): void {
+  $('sync-card').addEventListener('click', async (e) => {
+    const act = (e.target as HTMLElement).closest<HTMLElement>('[data-sync]')?.dataset.sync;
+    if (!act || syncBusy) return;
+    if (act === 'create' || act === 'join') {
+      const code = ($('sync-code') as HTMLInputElement).value;
+      if (code.trim().length < 6) {
+        syncMsg = 'The family code needs at least 6 characters.';
+        return renderSync();
+      }
+      if (act === 'join' && !confirm('Switch this device to your family’s contacts, photos and voices? Anything only on this device that the family doesn’t have will be added to the family.')) return;
+      await runSync(() => link(code, act, recordingStore), act === 'create' ? 'Family started! Use the same code on your other devices.' : 'Joined! This device now has your family’s things.');
+      renderEditor();
+    } else if (act === 'now') {
+      await runSync(() => sync(recordingStore), 'All synced.');
+    } else if (act === 'unlink') {
+      if (!confirm('Stop syncing this device? Everything stays on it as it is now.')) return;
+      unlink();
+      syncMsg = '';
+      renderSync();
+    } else if (act === 'forget') {
+      if (!confirm('Delete your family’s data from the server? Each device keeps its own copy, but nothing will sync any more. This can’t be undone.')) return;
+      await runSync(async () => (await forget(), { changedHere: false }), 'Family data deleted from the server.');
+    }
+  });
+  $('backup').addEventListener('click', async () => {
+    const n = await downloadBackup(recordingStore);
+    alert(`Backup saved with ${n} recording${n === 1 ? '' : 's'}. Keep the file somewhere safe, like iCloud Drive or email.`);
+  });
+  $('restore').addEventListener('click', () => ($('restore-input') as HTMLInputElement).click());
+  $('restore-input').addEventListener('change', async () => {
+    const input = $('restore-input') as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+    if (!confirm('Replace this device’s games setup with the backup?')) return;
+    try {
+      const r = await restoreBackup(file, recordingStore);
+      reloadContacts();
+      await loadRecordings();
+      renderEditor();
+      alert(`Restored ${r.recordings} recording${r.recordings === 1 ? '' : 's'} and your settings.`);
+      syncSoon();
+    } catch (e) {
+      alert(`That file couldn’t be restored: ${(e as Error).message}`);
+    }
+  });
+}
+
 function renderEditor(): void {
+  renderSync();
   const fam = allContacts().filter((c) => c.family);
   $('family').innerHTML = fam
     .map((c) => {
@@ -359,7 +480,10 @@ async function toggleRecord(slot: Slot): Promise<void> {
     const done = startRecording();
     renderRecorder();
     const blob = await done;
-    if (blob.size > 0) await saveRecording(id, slot, blob);
+    if (blob.size > 0) {
+      await saveRecording(id, slot, blob);
+      syncSoon();
+    }
   } catch {
     alert('The microphone could not be used. Check that this site is allowed to use it, then try again.');
   }
@@ -395,6 +519,7 @@ function bindEditor(): void {
   $('edit-done').addEventListener('click', () => {
     $('editor').hidden = true;
     $('menu').hidden = false;
+    if (isLinked()) void runSync(() => sync(recordingStore));
   });
   $('add-family').addEventListener('click', () => {
     const x = addExtra();
@@ -428,6 +553,7 @@ function bindEditor(): void {
       removeExtra(id);
     }
     renderEditor();
+    syncSoon();
   });
   $('family').addEventListener('input', (e) => {
     const input = e.target as HTMLInputElement;
@@ -435,6 +561,7 @@ function bindEditor(): void {
     if (!id) return;
     if (isExtra(id)) updateExtra(id, { name: input.value });
     else setCustom(id, { name: input.value });
+    syncSoon();
   });
   $('friends').addEventListener('click', (e) => {
     const id = (e.target as HTMLElement).closest<HTMLElement>('[data-id]')?.dataset.id;
@@ -442,6 +569,7 @@ function bindEditor(): void {
     if (!isHidden(id) && visibleContacts().length <= 1) return;
     setHidden(id, !isHidden(id));
     renderEditor();
+    syncSoon();
   });
   $('photo-input').addEventListener('change', async () => {
     const input = $('photo-input') as HTMLInputElement;
@@ -454,6 +582,7 @@ function bindEditor(): void {
       alert('Sorry, that photo could not be used. Try another one.');
     }
     renderEditor();
+    syncSoon();
   });
   $('slots').addEventListener('click', async (e) => {
     const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-act]');
@@ -465,6 +594,7 @@ function bindEditor(): void {
     if (btn.dataset.act === 'del') {
       await deleteRecording(recFor, slot);
       renderRecorder();
+      syncSoon();
     }
   });
   $('rec-done').addEventListener('click', closeRecorder);
@@ -483,6 +613,7 @@ function start(): void {
   keepAwake(true);
   say(getLang() === 'es' ? [en('Press the numbers!')] : 'Press the numbers!');
   preload(KEYS.map((k) => keyWord(k, getLang()))); // so every number speaks instantly
+  if (isLinked()) void runSync(() => sync(recordingStore));
   resetIdle();
 }
 
@@ -504,7 +635,10 @@ function stop(): void {
 }
 
 function init(): void {
-  void loadRecordings();
+  void loadRecordings().then(() => {
+    if (isLinked()) void runSync(() => sync(recordingStore));
+  });
+  bindSyncAndBackup();
   buildKeypad();
   bindVoiceButton($('voice'));
   bindLangButtons($('lang'));

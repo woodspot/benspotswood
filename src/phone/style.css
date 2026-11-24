@@ -136,3 +136,12 @@ span.fam-x { background: none; }
 .slot-row .rec { background: #ec4038; color: #fff; min-width: 82px; }
 .slot-row .rec.live { animation: pulse 1s infinite; }
 @keyframes pulse { 50% { box-shadow: 0 0 0 8px rgba(236,64,56,.25); } }
+
+/* Family sync and backup */
+.sync-card { width: min(420px, 100%); background: rgba(255,255,255,.22); border-radius: 18px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; text-align: left; }
+.sync-card b { font-size: 1.05rem; }
+.sync-card p { margin: 0; font-size: .85rem; line-height: 1.35; }
+.sync-card .fam-name { width: 100%; }
+.sync-card button:disabled { opacity: .5; }
+.sync-msg { font-weight: 800; background: rgba(0,0,0,.2); padding: 6px 10px; border-radius: 10px; }
+.backup-row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
