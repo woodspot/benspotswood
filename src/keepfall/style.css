@@ -719,3 +719,13 @@ html[data-cardback="gold"] .card-back { background: linear-gradient(135deg, #ffe
   #btn-speed .ico { margin: 0; }
   .log { width: auto; }
 }
+
+/* Battle log: a header with a close button that stays visible while the list scrolls */
+.log { padding-top: 0; }
+.log-head { position: sticky; top: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; background: var(--bg2); padding: 10px 0 6px; z-index: 1; }
+.log-head h3 { margin: 0; }
+.log-x { border: 1px solid var(--line); background: rgba(255,255,255,.06); color: var(--text); border-radius: 99px; padding: 4px 12px; font-weight: 700; font-size: .85rem; cursor: pointer; }
+.log-x:hover { border-color: var(--accent); }
+@media (max-width: 760px) {
+  .log { top: calc(56px + env(safe-area-inset-top)); max-height: 55vh; }
+}

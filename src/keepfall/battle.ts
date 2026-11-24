@@ -757,11 +757,28 @@ export function initBattleChrome(): void {
     sfx.click();
     toast(`<b>${SPEED_LABEL[speed][0]} ${SPEED_LABEL[speed][1]} speed</b><span>${speed === 'slow' ? 'Every move stays on screen longer.' : speed === 'fast' ? 'Moves play out quickly.' : 'The standard pace.'}</span>`);
   });
-  $('last-turn').addEventListener('click', () => ($('log').hidden = false));
+  // The battle log: open from the Log button or the Last turn strip; close with ✕, Escape or a tap elsewhere.
+  const log = $('log');
+  const setLog = (open: boolean) => {
+    log.hidden = !open;
+    if (open) log.scrollTop = 0;
+  };
+  $('last-turn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    setLog(log.hidden === true);
+  });
+  $('log-close').addEventListener('click', () => setLog(false));
+  document.addEventListener('pointerdown', (e) => {
+    const t = e.target as HTMLElement;
+    if (!log.hidden && !t.closest('#log, #btn-log, #last-turn')) setLog(false);
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') setLog(false);
+  });
   initTips(() => state, () => myTurn(), () => busy);
   $('btn-log').addEventListener('click', () => {
-    const log = $('log');
-    log.hidden = !log.hidden;
+    const el = $('log');
+    el.hidden = !el.hidden;
   });
   $('btn-mute').addEventListener('click', () => {
     setMuted(!isMuted());
