@@ -1,0 +1,39 @@
+// Words for the toddler games, in English and Spanish. No browser APIs here, so it can be tested.
+
+export type Lang = 'en' | 'es';
+
+/** A piece of speech in one language. */
+export interface Part {
+  text: string;
+  lang: Lang;
+}
+export const en = (text: string): Part => ({ text, lang: 'en' });
+export const es = (text: string): Part => ({ text, lang: 'es' });
+
+export const COLOR_WORDS: Record<string, { en: string; es: string }> = {
+  red: { en: 'red', es: 'rojo' },
+  blue: { en: 'blue', es: 'azul' },
+  yellow: { en: 'yellow', es: 'amarillo' },
+  green: { en: 'green', es: 'verde' },
+  orange: { en: 'orange', es: 'naranja' },
+  purple: { en: 'purple', es: 'morado' },
+  pink: { en: 'pink', es: 'rosa' },
+};
+
+export const SHAPE_WORDS: Record<string, { en: string; es: string }> = {
+  circle: { en: 'circle', es: 'círculo' },
+  star: { en: 'star', es: 'estrella' },
+  heart: { en: 'heart', es: 'corazón' },
+  square: { en: 'square', es: 'cuadrado' },
+  triangle: { en: 'triangle', es: 'triángulo' },
+};
+
+export const NUMBER_WORDS: { en: string; es: string }[] = [
+  { en: 'zero', es: 'cero' },
+  { en: 'one', es: 'uno' },
+  { en: 'two', es: 'dos' },
+  { en: 'three', es: 'tres' },
+  { en: 'four', es: 'cuatro' },
+  { en: 'five', es: 'cinco' },
+];
+

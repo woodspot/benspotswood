@@ -3,8 +3,10 @@
 import { bindVoiceButton, sfx, say, unlock } from '../kids/audio';
 import { burst, CONFETTI, party } from '../kids/fx';
 import { holdToExit, keepAwake, lockGestures } from '../kids/hold';
+import { bindLangButtons, getLang } from '../kids/lang';
+import { countParts, nameParts, nextParts, praiseParts, promptParts } from './speech';
 import {
-  COLOR_HEX, newSession, nextBalloon, nextPrompt, pop, praiseFor, promptFor,
+  COLOR_HEX, newSession, nextBalloon, pop,
   type Mode, type Session, type ShapeId, type Spec, type Target,
 } from './game';
 
@@ -117,7 +119,7 @@ function frame(now: number): void {
     for (const b of balloons.filter((x) => x.y < -bh)) remove(b);
     if (!reminded && now - lastTouch > IDLE_REPROMPT_MS && session.target.kind !== 'any') {
       reminded = true;
-      say(promptFor(session.target));
+      say(promptParts(session.target, getLang()));
     }
   }
   requestAnimationFrame(frame);
@@ -156,26 +158,29 @@ function onPop(b: Balloon): void {
     burst(stage(), cx, cy, [color, '#fff'], 14, 90);
     if (session.correct % 3 === 0) setTimeout(sfx.yay, 60);
     if (session.correct % 15 === 0) celebrate();
+    else say(nameParts(b.spec, false, getLang())); // Spanish: every pop names its colour
   } else if (res.kind === 'other') {
     burst(stage(), cx, cy, [color], 10, 60);
     setTimeout(sfx.boop, 80);
-    nudgeTarget(); // no talking: the picture at the top wiggles to show what to look for
+    nudgeTarget(); // the picture at the top wiggles to show what to look for
+    say(nameParts(b.spec, session.mode === 'shapes', getLang())); // Spanish: name what they popped
   } else {
     burst(stage(), cx, cy, [color, ...CONFETTI], 22, 140);
     if (res.count) {
       bigText(cx, cy, String(res.count));
       sfx.count(res.count);
     }
+    if (res.count && !res.done) say(countParts(res.count, getLang())); // count out loud: "one, two…"
     if (res.done) {
       setTimeout(sfx.yay, res.count ? 250 : 60);
       rightAnswers++;
       renderTarget(asked, true);
       if (rightAnswers % CELEBRATE_EVERY === 0) {
-        say(praiseFor(asked));
+        say(praiseParts(asked, getLang()));
         setTimeout(celebrate, 1200);
       } else {
-        // One short line: name what they found, then the next thing. "Red! Now blue."
-        say(`${praiseFor(asked)} ${nextPrompt(session.target)}`);
+        // One short line: name what they found, then the next thing. "Red! Now blue." / "¡Rojo! Now… azul."
+        say([...praiseParts(asked, getLang()), ...nextParts(session.target, getLang())]);
         setTimeout(() => renderTarget(session.target), 900);
       }
     }
@@ -197,7 +202,7 @@ function celebrate(): void {
   party($('party'), stage(), () => {
     paused = false;
     renderTarget(session.target);
-    if (session.target.kind !== 'any') say(promptFor(session.target));
+    if (session.target.kind !== 'any') say(promptParts(session.target, getLang()));
   });
 }
 
@@ -228,7 +233,7 @@ function start(mode: Mode): void {
   $('game').hidden = false;
   renderTarget(session.target);
   reminded = false;
-  if (mode !== 'free') say(promptFor(session.target));
+  if (mode !== 'free') say(promptParts(session.target, getLang()));
   running = true;
   paused = false;
   lastFrame = 0;
@@ -259,6 +264,7 @@ function buildMenu(): void {
     .map((m) => `<button class="mode m-${m}" data-mode="${m}"><span class="pic">${pics[m]}</span><span class="lbl">${label[m]}</span></button>`)
     .join('');
   bindVoiceButton($('voice'));
+  bindLangButtons($('lang'));
   $('modes').addEventListener('click', (e) => {
     const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-mode]');
     if (btn) start(btn.dataset.mode as Mode);
@@ -277,7 +283,7 @@ function init(): void {
   });
   $('target').addEventListener('pointerdown', () => {
     lastTouch = performance.now();
-    say(promptFor(session.target));
+    say(promptParts(session.target, getLang()));
   });
   lockGestures();
   document.addEventListener('visibilitychange', () => {

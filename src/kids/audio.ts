@@ -78,17 +78,27 @@ export const sfx = {
   },
 };
 
-let voice: SpeechSynthesisVoice | null = null;
+// One voice per language. English instructions; the word being learned can be in Spanish.
+import { en, type Lang, type Part } from './words';
+export { en, es, type Lang, type Part } from './words';
+const voices: Record<Lang, SpeechSynthesisVoice | null> = { en: null, es: null };
+const LIKED: Record<Lang, string[]> = {
+  en: ['Samantha', 'Karen', 'Moira', 'Tessa', 'Google UK English Female', 'Microsoft Aria', 'Microsoft Jenny', 'Google US English'],
+  // Latin American Spanish first, then Spain.
+  es: ['Paulina', 'Google español de Estados Unidos', 'Microsoft Sabina', 'Mónica', 'Monica', 'Google español', 'Microsoft Helena'],
+};
 
-function chooseVoice(): void {
-  const voices = speechSynthesis.getVoices().filter((v) => v.lang.startsWith('en'));
-  // Prefer a warm, natural-sounding voice where the device has one.
-  const liked = ['Samantha', 'Karen', 'Moira', 'Tessa', 'Google UK English Female', 'Microsoft Aria', 'Microsoft Jenny', 'Google US English'];
-  voice = liked.map((n) => voices.find((v) => v.name.includes(n))).find(Boolean) ?? voices[0] ?? null;
+function chooseVoices(): void {
+  const all = speechSynthesis.getVoices();
+  for (const lang of ['en', 'es'] as Lang[]) {
+    const mine = all.filter((v) => v.lang.toLowerCase().startsWith(lang));
+    const preferred = lang === 'es' ? mine.filter((v) => /-(MX|US|419)/i.test(v.lang)) : mine;
+    voices[lang] = LIKED[lang].map((n) => mine.find((v) => v.name.includes(n))).find(Boolean) ?? preferred[0] ?? mine[0] ?? null;
+  }
 }
 if ('speechSynthesis' in window) {
-  chooseVoice();
-  speechSynthesis.addEventListener?.('voiceschanged', chooseVoice);
+  chooseVoices();
+  speechSynthesis.addEventListener?.('voiceschanged', chooseVoices);
 }
 
 let voiceOn = (localStorage.getItem('kids.voice') ?? localStorage.getItem('balloons.voice')) !== 'off';
@@ -99,16 +109,22 @@ export function setVoiceOn(on: boolean): void {
   if (!on && 'speechSynthesis' in window) speechSynthesis.cancel();
 }
 
-/** Say something, cutting off whatever was being said. */
-export function say(text: string): void {
-  if (!voiceOn || !text || !('speechSynthesis' in window)) return;
+/** Say something, cutting off whatever was being said. Mixed-language lines are spoken part by part. */
+export function say(line: string | Part[]): void {
+  if (!voiceOn || !('speechSynthesis' in window)) return;
+  const parts = (typeof line === 'string' ? [en(line)] : line).filter((p) => p.text);
+  if (!parts.length) return;
   speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(text);
-  if (voice) u.voice = voice;
-  u.rate = 0.95;
-  u.pitch = 1;
-  u.volume = 0.8;
-  speechSynthesis.speak(u);
+  for (const p of parts) {
+    const u = new SpeechSynthesisUtterance(p.text);
+    u.lang = p.lang === 'es' ? (voices.es?.lang ?? 'es-MX') : (voices.en?.lang ?? 'en-US');
+    const v = voices[p.lang];
+    if (v) u.voice = v;
+    u.rate = p.lang === 'es' ? 0.85 : 0.95; // learning words a touch slower
+    u.pitch = 1;
+    u.volume = 0.8;
+    speechSynthesis.speak(u);
+  }
 }
 
 /** The "Voice on / Voice off" button on a start screen. */

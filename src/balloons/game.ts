@@ -122,39 +122,6 @@ function finish(s: Session, rng: Rng, count?: number): PopResult {
   return { kind: 'right', done: true, count };
 }
 
-/** What the voice asks for. */
-export function promptFor(t: Target): string {
-  switch (t.kind) {
-    case 'any':
-      return 'Pop the balloons!';
-    case 'color':
-      return `Pop the ${t.id} balloon!`;
-    case 'shape':
-      return `Pop the ${t.id}!`;
-    case 'count':
-      return t.n === 1 ? 'Pop one balloon!' : `Pop ${NUMBER_WORDS[t.n]} balloons!`;
-  }
-}
-
-export const NUMBER_WORDS = ['zero', 'one', 'two', 'three', 'four', 'five'];
-
-/** What the voice says after a right answer: just the word, so it sticks. */
-export function praiseFor(done: Target): string {
-  if (done.kind === 'color' || done.kind === 'shape') return `${cap(done.id)}!`;
-  if (done.kind === 'count') return `${cap(NUMBER_WORDS[done.n])}!`;
-  return 'Yay!';
-}
-
-/** The short follow-on ask after a right answer: "Now blue." */
-export function nextPrompt(t: Target): string {
-  if (t.kind === 'color') return `Now ${t.id}.`;
-  if (t.kind === 'shape') return `Now the ${t.id}.`;
-  if (t.kind === 'count') return `Now ${NUMBER_WORDS[t.n]}.`;
-  return '';
-}
-
-const cap = (w: string) => w[0].toUpperCase() + w.slice(1);
-
 /** Seeded RNG for tests. */
 export function mulberry32(seed: number): Rng {
   let a = seed >>> 0;

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { colorPool, matches, mulberry32, newSession, nextBalloon, nextPrompt, pop, praiseFor, promptFor, type Spec } from './game';
+import { colorPool, matches, mulberry32, newSession, nextBalloon, pop, type Spec } from './game';
+import { countParts, nameParts, nextParts, praiseParts, promptParts } from './speech';
 
 describe('balloon pop', () => {
   it('always keeps a matching balloon available', () => {
@@ -49,10 +50,19 @@ describe('balloon pop', () => {
     expect(colorPool(100)).toHaveLength(7);
   });
 
-  it('says friendly words', () => {
-    expect(promptFor({ kind: 'color', id: 'red' })).toBe('Pop the red balloon!');
-    expect(promptFor({ kind: 'count', n: 3 })).toBe('Pop three balloons!');
-    expect(praiseFor({ kind: 'shape', id: 'star' })).toBe('Star!');
-    expect(nextPrompt({ kind: 'color', id: 'blue' })).toBe('Now blue.');
+  it('speaks English, or English instructions with the word in Spanish', () => {
+    const red = { kind: 'color', id: 'red' } as const;
+    expect(promptParts(red, 'en')).toEqual([{ text: 'Pop the red balloon!', lang: 'en' }]);
+    expect(promptParts(red, 'es')).toEqual([
+      { text: 'Pop the', lang: 'en' }, { text: 'rojo', lang: 'es' }, { text: 'balloon!', lang: 'en' },
+    ]);
+    expect(promptParts({ kind: 'count', n: 3 }, 'en')).toEqual([{ text: 'Pop three balloons!', lang: 'en' }]);
+    expect(praiseParts({ kind: 'shape', id: 'star' }, 'en')).toEqual([{ text: 'Star!', lang: 'en' }]);
+    expect(praiseParts({ kind: 'shape', id: 'star' }, 'es')).toEqual([{ text: '¡Estrella!', lang: 'es' }]);
+    expect(nextParts({ kind: 'color', id: 'blue' }, 'es')).toEqual([{ text: 'Now', lang: 'en' }, { text: 'azul', lang: 'es' }]);
+    expect(countParts(2, 'es')).toEqual([{ text: 'dos', lang: 'es' }]);
+    // In English a popped balloon stays quiet; in Spanish it names its colour.
+    expect(nameParts({ color: 'green', shape: null }, false, 'en')).toEqual([]);
+    expect(nameParts({ color: 'green', shape: null }, false, 'es')).toEqual([{ text: 'verde', lang: 'es' }]);
   });
 });

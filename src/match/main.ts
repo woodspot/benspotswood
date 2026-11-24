@@ -1,10 +1,11 @@
 // Match It: a matching game for toddlers. "Same" asks them to find the twin of one picture;
 // "Memory" is pairs with face-down cards, starting tiny. No losing, very little talking.
-import { bindVoiceButton, say, sfx, unlock } from '../kids/audio';
+import { bindVoiceButton, en, es, say, sfx, unlock, type Part } from '../kids/audio';
+import { bindLangButtons, getLang } from '../kids/lang';
 import { burst, CONFETTI, party } from '../kids/fx';
 import { holdToExit, keepAwake, lockGestures } from '../kids/hold';
 import {
-  flip, gridFor, hideMiss, MEMORY_PAIRS, newMemory, newSame, PICS,
+  flip, gridFor, hideMiss, newMemory, newSame, PAIR_OPTIONS, PICS,
   type Memory, type SameRound, type Theme,
 } from './game';
 
@@ -19,13 +20,30 @@ let mode: Mode = 'same';
 let theme: Theme = (localStorage.getItem('match.theme') as Theme) || 'animals';
 let busy = false; // ignore taps during animations and parties
 let wins = 0; // right answers (Same) or boards cleared (Memory) this session
-let level = 0; // Memory board size
+let pairs = Number(localStorage.getItem('match.pairs')) || 3; // Memory board size, picked on the menu
 let same: SameRound | null = null;
 let memory: Memory | null = null;
 let idleTimer = 0;
 
 const stage = () => $('stage');
 const picOf = (i: number) => PICS[theme][i];
+/** The picture's name in the chosen language: "Dog!" or "¡Perro!" */
+function nameParts(i: number): Part[] {
+  const p = picOf(i);
+  return getLang() === 'es' ? [es(`¡${cap(p.es)}!`)] : [en(`${cap(p.name)}!`)];
+}
+const caption = (i: number) => (getLang() === 'es' ? picOf(i).es : picOf(i).name);
+
+/** The word floats up above a match: "perro". */
+function showWord(i: number, x: number, y: number): void {
+  const el = document.createElement('div');
+  el.className = 'say-word';
+  el.textContent = caption(i);
+  el.style.left = `${Math.max(90, Math.min(innerWidth - 90, x))}px`;
+  el.style.top = `${y}px`;
+  stage().appendChild(el);
+  setTimeout(() => el.remove(), 1700);
+}
 
 // ── Cards ──────────────────────────────────────────────────────
 
@@ -105,7 +123,8 @@ function onSameTap(card: HTMLElement): void {
   stage().querySelector('.target-card .card')?.classList.add('found');
   const [x, y] = centerOf(card);
   burst(stage(), x, y, CONFETTI, 22, 130);
-  say(`${cap(picOf(pic).name)}!`);
+  showWord(pic, x, y);
+  say(nameParts(pic));
   if (wins % CELEBRATE_EVERY === 0) setTimeout(() => celebrate(() => sameRound()), 900);
   else setTimeout(() => sameRound(), 1400);
 }
@@ -113,7 +132,6 @@ function onSameTap(card: HTMLElement): void {
 // ── Memory ─────────────────────────────────────────────────────
 
 function memoryBoard(first = false): void {
-  const pairs = MEMORY_PAIRS[Math.min(level, MEMORY_PAIRS.length - 1)];
   memory = newMemory(theme, pairs, rng);
   stage().style.setProperty('--top', '70px');
   stage().innerHTML = `<div class="board memory" id="board">${memory.cards.map((c, i) => cardHtml(i, c.pic, true, 'deal')).join('')}</div>`;
@@ -148,13 +166,15 @@ function onMemoryTap(card: HTMLElement): void {
         const [x, y] = centerOf(c);
         burst(stage(), x, y, CONFETTI, 14, 90);
       });
-      say(`${cap(picOf(res.pic).name)}!`);
+      const [x1, y1] = centerOf(shown[0]);
+      const [x2, y2] = centerOf(shown[1] ?? shown[0]);
+      showWord(res.pic, (x1 + x2) / 2, (y1 + y2) / 2);
+      say(nameParts(res.pic));
     }, 250);
     if (res.done) {
       busy = true;
       clearTimeout(idleTimer);
       wins++;
-      level++;
       setTimeout(() => celebrate(() => memoryBoard()), 1300);
     }
   } else if (res.kind === 'miss') {
@@ -182,7 +202,6 @@ function start(m: Mode): void {
   unlock();
   mode = m;
   wins = 0;
-  level = 0;
   same = null;
   $('menu').hidden = true;
   $('game').hidden = false;
@@ -201,6 +220,12 @@ function stop(): void {
   $('menu').hidden = false;
 }
 
+function renderPairs(): void {
+  $('pairs').innerHTML = `<span>Pairs:</span>${PAIR_OPTIONS.map(
+    (n) => `<button class="pair-btn ${n === pairs ? 'sel' : ''}" data-pairs="${n}">${n}</button>`,
+  ).join('')}`;
+}
+
 function renderThemes(): void {
   const icons: Record<Theme, string> = { animals: '🐶', vehicles: '🚗', food: '🍎' };
   $('themes').innerHTML = (Object.keys(icons) as Theme[])
@@ -210,6 +235,16 @@ function renderThemes(): void {
 
 function init(): void {
   renderThemes();
+  renderPairs();
+  $('pairs').addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLElement>('[data-pairs]');
+    if (!b) return;
+    pairs = Number(b.dataset.pairs);
+    localStorage.setItem('match.pairs', String(pairs));
+    unlock();
+    sfx.flip();
+    renderPairs();
+  });
   $('themes').addEventListener('click', (e) => {
     const b = (e.target as HTMLElement).closest<HTMLElement>('[data-theme]');
     if (!b) return;
@@ -224,6 +259,7 @@ function init(): void {
     if (b) start(b.dataset.mode as Mode);
   });
   bindVoiceButton($('voice'));
+  bindLangButtons($('lang'));
   holdToExit($('home'), stop);
   lockGestures();
   // Respond on touch-down: quicker and more forgiving than a full click for small fingers.

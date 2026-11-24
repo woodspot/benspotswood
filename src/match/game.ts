@@ -1,30 +1,31 @@
 // Match It: the rules, kept free of the DOM so they can be tested.
 // Two ways to play:
 //  - Same: one picture at the top; tap the one that matches from 2–4 cards (all face up).
-//  - Memory: classic pairs, starting with just 2 pairs and growing as the child wins.
+//  - Memory: classic pairs; a grown-up picks how many (2–8).
 
 export type Theme = 'animals' | 'vehicles' | 'food';
 
 export interface Pic {
   e: string; // emoji
-  name: string; // what the voice calls it
+  name: string; // English word
+  es: string; // Spanish word
 }
 
 export const PICS: Record<Theme, Pic[]> = {
   animals: [
-    { e: '🐶', name: 'dog' }, { e: '🐱', name: 'cat' }, { e: '🐮', name: 'cow' }, { e: '🐷', name: 'pig' },
-    { e: '🐸', name: 'frog' }, { e: '🦁', name: 'lion' }, { e: '🐵', name: 'monkey' }, { e: '🐔', name: 'chicken' },
-    { e: '🦆', name: 'duck' }, { e: '🐘', name: 'elephant' }, { e: '🐰', name: 'bunny' }, { e: '🐻', name: 'bear' },
+    { e: '🐶', name: 'dog', es: 'perro' }, { e: '🐱', name: 'cat', es: 'gato' }, { e: '🐮', name: 'cow', es: 'vaca' }, { e: '🐷', name: 'pig', es: 'cerdo' },
+    { e: '🐸', name: 'frog', es: 'rana' }, { e: '🦁', name: 'lion', es: 'león' }, { e: '🐵', name: 'monkey', es: 'mono' }, { e: '🐔', name: 'chicken', es: 'gallina' },
+    { e: '🦆', name: 'duck', es: 'pato' }, { e: '🐘', name: 'elephant', es: 'elefante' }, { e: '🐰', name: 'bunny', es: 'conejo' }, { e: '🐻', name: 'bear', es: 'oso' },
   ],
   vehicles: [
-    { e: '🚗', name: 'car' }, { e: '🚒', name: 'fire truck' }, { e: '🚜', name: 'tractor' }, { e: '🚂', name: 'train' },
-    { e: '✈️', name: 'plane' }, { e: '🚀', name: 'rocket' }, { e: '🚌', name: 'bus' }, { e: '🚁', name: 'helicopter' },
-    { e: '⛵', name: 'boat' }, { e: '🚲', name: 'bike' }, { e: '🚓', name: 'police car' }, { e: '🚑', name: 'ambulance' },
+    { e: '🚗', name: 'car', es: 'carro' }, { e: '🚒', name: 'fire truck', es: 'camión de bomberos' }, { e: '🚜', name: 'tractor', es: 'tractor' }, { e: '🚂', name: 'train', es: 'tren' },
+    { e: '✈️', name: 'plane', es: 'avión' }, { e: '🚀', name: 'rocket', es: 'cohete' }, { e: '🚌', name: 'bus', es: 'autobús' }, { e: '🚁', name: 'helicopter', es: 'helicóptero' },
+    { e: '⛵', name: 'boat', es: 'barco' }, { e: '🚲', name: 'bike', es: 'bicicleta' }, { e: '🚓', name: 'police car', es: 'patrulla' }, { e: '🚑', name: 'ambulance', es: 'ambulancia' },
   ],
   food: [
-    { e: '🍎', name: 'apple' }, { e: '🍌', name: 'banana' }, { e: '🍓', name: 'strawberry' }, { e: '🍇', name: 'grapes' },
-    { e: '🍊', name: 'orange' }, { e: '🍉', name: 'watermelon' }, { e: '🥕', name: 'carrot' }, { e: '🧀', name: 'cheese' },
-    { e: '🍪', name: 'cookie' }, { e: '🍦', name: 'ice cream' }, { e: '🥦', name: 'broccoli' }, { e: '🍐', name: 'pear' },
+    { e: '🍎', name: 'apple', es: 'manzana' }, { e: '🍌', name: 'banana', es: 'plátano' }, { e: '🍓', name: 'strawberry', es: 'fresa' }, { e: '🍇', name: 'grapes', es: 'uvas' },
+    { e: '🍊', name: 'orange', es: 'naranja' }, { e: '🍉', name: 'watermelon', es: 'sandía' }, { e: '🥕', name: 'carrot', es: 'zanahoria' }, { e: '🧀', name: 'cheese', es: 'queso' },
+    { e: '🍪', name: 'cookie', es: 'galleta' }, { e: '🍦', name: 'ice cream', es: 'helado' }, { e: '🥦', name: 'broccoli', es: 'brócoli' }, { e: '🍐', name: 'pear', es: 'pera' },
   ],
 };
 
@@ -75,8 +76,8 @@ export interface Memory {
   open: number[]; // indexes of face-up, unmatched cards (0–2)
 }
 
-/** Board size by level: 2 pairs, then 3, 4 and 6. */
-export const MEMORY_PAIRS = [2, 3, 4, 6];
+/** How many pairs a grown-up can pick for Memory. */
+export const PAIR_OPTIONS = [2, 3, 4, 6, 8];
 
 export function newMemory(theme: Theme, pairs: number, rng: Rng): Memory {
   const pics = pickPics(theme, pairs, rng);
@@ -117,7 +118,8 @@ export function gridFor(n: number, w: number, h: number): { cols: number; rows: 
   for (let cols = 1; cols <= n; cols++) {
     const rows = Math.ceil(n / cols);
     if (cols * rows - n >= cols) continue; // no empty rows
-    const size = Math.min(w / cols, (h / rows) * 0.75);
+    // Prefer full rows: a lone card on the last row looks odd, so ragged layouts score a little lower.
+    const size = Math.min(w / cols, (h / rows) * 0.75) * (n % cols === 0 ? 1 : 0.9);
     if (size > best.size) best = { cols, rows, size };
   }
   return { cols: best.cols, rows: best.rows };
