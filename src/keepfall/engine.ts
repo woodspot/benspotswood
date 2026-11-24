@@ -3,7 +3,7 @@ import { EVENTS, EVENT_MAP, FACTIONS, FACTION_MAP, mergeMods, type FactionId, ty
 import { RELIC_MAP } from './relics';
 import { CAPTAIN_MAP, usesFor } from './captains';
 import { DEFAULT_RULES, RESOURCES } from './types';
-import type { Action, Condition, GameState, Op, Player, Rules, StartBonus, WinKind } from './types';
+import type { Action, Beat, Condition, GameState, Op, Player, Rules, StartBonus, WinKind } from './types';
 
 // ── Seeded RNG (mulberry32): same seed → same game ─────────────
 function nextRandom(state: GameState): number {
@@ -134,6 +134,12 @@ export function modsFor(state: GameState, who: 0 | 1): Required<Mods> {
   );
 }
 
+/** Record a beat (only when the battle screen asked for them: the AI's lookahead skips this). */
+function beat(state: GameState, b: Omit<Beat, 'after' | 'event'>): void {
+  if (!state.beats) return;
+  state.beats.push({ ...b, after: structuredClone(state.players), event: state.event });
+}
+
 function addBuilding(p: Player, id: string, rules: Rules): void {
   p.buildings.push(id);
   while (p.buildings.length > rules.buildingSlots) p.buildings.shift(); // replaces the oldest
@@ -146,18 +152,26 @@ function startTurn(state: GameState, rules: Rules): void {
   const foe = state.players[1 - who];
   const mods = modsFor(state, who);
   for (const r of RESOURCES) p.res[r] += Math.max(1, p.gen[r] + mods.prodDelta);
+  beat(state, { kind: 'income', player: who, icon: '💰', name: 'Income' });
   // Buildings deal their printed damage: card bonuses (faction, relic, event) don't stack every turn.
   const plain = { ...mods, damageBonus: 0, spellBonus: 0, stealBonus: 0 };
   for (const id of p.buildings) {
     const b = building(id);
     for (const o of b.ops) applyOp(p, foe, o, plain, rules);
+    beat(state, { kind: 'module', player: who, icon: b.icon, name: b.name });
   }
   // Relics, crew, traits and bosses that act every turn.
-  for (const r of p.relics) for (const o of RELIC_MAP[r]?.turnOps ?? []) applyOp(p, foe, o, plain, rules);
+  for (const r of p.relics) {
+    const def = RELIC_MAP[r];
+    if (!def?.turnOps?.length) continue;
+    for (const o of def.turnOps) applyOp(p, foe, o, plain, rules);
+    beat(state, { kind: 'relic', player: who, icon: def.icon, name: def.name });
+  }
   // Burns placed on this player tick now.
   if (p.burnTurns > 0) {
     harmTower(p, p.burn);
     if (--p.burnTurns === 0) p.burn = 0;
+    beat(state, { kind: 'burn', player: who, icon: '🔥', name: 'Burning' });
   }
 }
 
@@ -181,6 +195,7 @@ function maybeChangeEvent(state: GameState, rules: Rules): void {
   const e = choices[Math.floor(nextRandom(state) * choices.length)];
   state.event = e.id;
   state.log.push({ player: state.current, kind: 'event', text: `${e.icon} ${e.name}: ${e.text}` });
+  beat(state, { kind: 'weather', player: state.current, icon: e.icon, name: e.name, text: e.text });
 }
 
 export function costOf(state: GameState, who: 0 | 1, cardId: string): number {
@@ -353,9 +368,12 @@ function checkWinner(state: GameState, rules: Rules): void {
  * The whole game in one pure function: (state, action) → new state.
  * The UI and AI never mutate state themselves.
  */
-export function step(prev: GameState, action: Action, rules: Rules = DEFAULT_RULES): GameState {
+export function step(prev: GameState, action: Action, rules: Rules = DEFAULT_RULES, record = false): GameState {
   if (prev.winner !== null) return prev;
-  const state = structuredClone(prev);
+  const { beats: _old, ...rest } = prev;
+  void _old;
+  const state: GameState = structuredClone(rest);
+  if (record) state.beats = [];
   const who = state.current;
   const me = state.players[who];
   const foe = state.players[1 - who];
@@ -373,6 +391,7 @@ export function step(prev: GameState, action: Action, rules: Rules = DEFAULT_RUL
       if (!e) return;
       state.event = id;
       state.log.push({ player: who, kind: 'event', text: `${e.icon} ${e.name}: ${e.text}` });
+      beat(state, { kind: 'weather', player: who, icon: e.icon, name: e.name, text: e.text });
     },
   });
 
@@ -382,6 +401,7 @@ export function step(prev: GameState, action: Action, rules: Rules = DEFAULT_RUL
     if (!cap || !me.captain || me.captain.uses <= 0) throw new Error('No power to use');
     me.captain.uses--;
     for (const o of cap.power.ops(me.captain.level)) applyOp(me, foe, o, modsFor(state, who), rules, ctxFor());
+    beat(state, { kind: 'power', player: who, icon: cap.icon, name: cap.power.name });
     state.log.push({ player: who, kind: 'info', text: `${cap.icon} ${me.name} used ${cap.power.name}` });
     checkWinner(state, rules);
     if (state.winner !== null) state.log.push({ player: who, kind: 'info', text: state.winReason! });
@@ -405,8 +425,10 @@ export function step(prev: GameState, action: Action, rules: Rules = DEFAULT_RUL
     playAgain = c.ops.some((o) => o.op === 'again') || (ch !== undefined && ch.options[choice!].some((o) => o.op === 'again'));
     state.chain++;
     state.log.push({ player: who, kind: 'play', cardId, text: `${me.name} played ${c.name}${ch ? ` (option ${choice! + 1})` : ''}` });
+    beat(state, { kind: 'card', player: who, icon: '🃏', name: c.name, cardId });
   } else {
     state.log.push({ player: who, kind: 'discard', cardId, text: `${me.name} discarded ${c.name}` });
+    beat(state, { kind: 'discard', player: who, icon: '🗑️', name: c.name, cardId });
   }
   state.lastAction = { player: who, kind: action.kind, cardId };
 

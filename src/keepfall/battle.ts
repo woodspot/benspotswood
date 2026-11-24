@@ -7,14 +7,14 @@ import { hasClips, say, unlock as unlockVoice, type Part } from '../kids/audio';
 import { EVENT_MAP, FACTION_MAP, type FactionId } from './factions';
 import { isMuted, setMuted, sfx, unlock } from './sound';
 import { DEFAULT_RULES, RESOURCES } from './types';
-import type { Action, GameState, Op, Player, Rules } from './types';
+import type { Action, Beat, GameState, Op, Player, Rules } from './types';
+import { hideTip, initTips, maybeTip } from './tips';
 import { buildShip, setPlates } from './ship';
 import { $, cardFace, esc, ICON, relicChip, toast } from './ui';
 
 let rules: Rules = DEFAULT_RULES; // per battle: some campaign fights change the weather more often
 const HUMAN = 0 as const;
 const AI = 1 as const;
-const AI_DELAY = 900;
 
 export interface BattleConfig {
   enemyName: string;
@@ -56,8 +56,17 @@ const KEYWORDS: [RegExp, string][] = [
   [/Junk/, '🗑️ Junk is a dud card. It does nothing, but playing it removes it from the deck.'],
   [/Combo/, '⚡ Combo: the bonus happens if you already played a card this turn.'],
   [/Play again/, '↻ Play again: take another turn straight away.'],
-  [/Each turn/, '🔧 Modules take one of your 3 slots and act at the start of every one of your turns.'],
+  [/Module/, '🔧 Modules stay aboard after you play them: each takes one of your 3 module slots and acts at the start of every one of your turns. A 4th module replaces your oldest.'],
 ];
+
+const ALT_INFO = '🎈 Altitude: how high the ship flies. Reach 50 to win (the high harbor); at 0 the ship goes down. Damage only reaches it once the Armor is gone, but spells and Burns hit it directly.';
+const ARMOR_INFO = '🛡️ Armor: plating that soaks up damage before Altitude drops. Spells and Burns go straight past it.';
+
+/** What a module does, in a sentence. */
+const moduleInfo = (id: string) => {
+  const b = building(id);
+  return `${b.icon} ${b.name} (module): ${b.ops.map(describeOp).join(', ')} at the start of each of its owner's turns.`;
+};
 
 function renderPanel(i: 0 | 1): void {
   const p = state.players[i];
@@ -69,8 +78,7 @@ function renderPanel(i: 0 | 1): void {
     const id = p.buildings[k];
     if (!id) return '<div class="slot empty" data-info="Empty module slot"></div>';
     const b = building(id);
-    const info = `${b.icon} ${b.name}: ${b.ops.map(describeOp).join(', ')} at the start of each turn`;
-    return `<div class="slot" data-info="${esc(info)}">${b.icon}<small>${esc(b.name)}</small></div>`;
+    return `<div class="slot" data-info="${esc(moduleInfo(id))}">${b.icon}<small>${esc(b.name)}</small></div>`;
   }).join('');
   const status: string[] = [];
   if (p.ward) status.push(`<div class="stat ward" data-k="ward" data-info="${esc(KEYWORDS[0][1])}"><span>💠<em> Ward</em></span><b>${p.ward}</b></div>`);
@@ -86,8 +94,8 @@ function renderPanel(i: 0 | 1): void {
       ${i === AI ? `<span class="hand-count" data-info="Cards in their hand">🃏${p.hand.length}</span>` : ''}
     </div>
     <div class="p-stats">
-      <div class="stat" data-k="tower"><span>🎈<em> Altitude</em></span><b>${p.tower}</b></div>
-      <div class="stat" data-k="wall"><span>🛡️<em> Armor</em></span><b>${p.wall}</b></div>
+      <div class="stat" data-k="tower" data-info="${esc(ALT_INFO)}"><span>🎈<em> Altitude</em></span><b>${p.tower}</b></div>
+      <div class="stat" data-k="wall" data-info="${esc(ARMOR_INFO)}"><span>🛡️<em> Armor</em></span><b>${p.wall}</b></div>
       ${status.join('')}
     </div>
     <div class="p-res">
@@ -122,12 +130,14 @@ function renderShip(i: 0 | 1): void {
   el.style.bottom = `${SEA - shipH * 0.12 + frac * climb}px`;
   el.classList.toggle('sunk', p.tower <= 0);
   el.querySelector<HTMLElement>('.alt-num')!.textContent = String(p.tower);
+  el.querySelector<HTMLElement>('.alt-num')!.dataset.info = ALT_INFO;
+  el.querySelector<HTMLElement>('.armor-num')!.dataset.info = ARMOR_INFO;
   el.querySelector<HTMLElement>('.armor-num')!.textContent = p.wall ? `🛡️${p.wall}` : '';
   setPlates(el, p.wall);
   el.classList.toggle('warded', p.ward > 0);
   el.classList.toggle('burning', p.burnTurns > 0);
   el.querySelector<HTMLElement>('.modules')!.innerHTML = p.buildings
-    .map((id) => `<span data-info="${esc(`${building(id).icon} ${building(id).name}`)}">${building(id).icon}</span>`)
+    .map((id) => `<span data-info="${esc(moduleInfo(id))}">${building(id).icon}</span>`)
     .join('');
   const shadow = $(`shadow-${i}`);
   shadow.style.opacity = String(0.55 - frac * 0.4);
@@ -365,14 +375,6 @@ function renderEvent(): void {
   }
 }
 
-function renderLog(): void {
-  $('log-list').innerHTML = state.log
-    .slice(-60)
-    .reverse()
-    .map((l) => `<li class="p${l.player} ${l.kind}">${esc(l.text)}</li>`)
-    .join('');
-}
-
 let lastTurnOwner: 0 | 1 | null = null;
 
 function render(): void {
@@ -411,124 +413,289 @@ function floatAt(target: Element | null, text: string, cls: string): void {
   setTimeout(() => f.remove(), 1200);
 }
 
-function showDiffs(before: GameState, after: GameState): void {
-  let hit = false;
-  let built = false;
+// ── Pace: how long each effect stays on screen ─────────────────
+
+type Speed = 'slow' | 'normal' | 'fast';
+const SPEEDS: Speed[] = ['slow', 'normal', 'fast'];
+const PACE: Record<Speed, number> = { slow: 1.7, normal: 1, fast: 0.35 };
+const SPEED_LABEL: Record<Speed, [string, string]> = { slow: ['🐢', 'Slow'], normal: ['▶️', 'Normal'], fast: ['⏩', 'Fast'] };
+let speed: Speed = (localStorage.getItem('keepfall.speed') as Speed) || 'normal';
+const wait = (n: number) => new Promise<void>((r) => setTimeout(r, Math.round(n * PACE[speed])));
+
+function renderSpeed(): void {
+  const [icon, label] = SPEED_LABEL[speed];
+  $('btn-speed').innerHTML = `<span class="ico">${icon}</span><span class="lbl">${label}</span>`;
+  $('btn-speed').title = `Battle speed: ${label} (tap to change)`;
+}
+
+// ── What happened: captions, the last-turn strip and the log ───
+
+interface Line {
+  turn: number;
+  player: 0 | 1;
+  icon: string;
+  text: string;
+}
+let history: Line[] = []; // the whole battle, oldest first
+let roundLines: Line[] = []; // since the opponent last started a turn
+
+const whose = (i: 0 | 1) => (i === HUMAN ? 'your' : 'their');
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+const junkCount = (p: Player) => [...p.deck, ...p.hand, ...p.discard].filter((x) => x === 'rubble').length;
+
+/** Plain-English list of what changed between two moments, e.g. "your Armor 10→1". */
+function changes(a: [Player, Player], b: [Player, Player], only?: 0 | 1): string[] {
+  const out: string[] = [];
+  for (const i of [0, 1] as const) {
+    if (only !== undefined && i !== only) continue;
+    const x = a[i];
+    const y = b[i];
+    const w = whose(i);
+    const num = (label: string, p: number, q: number) => p !== q && out.push(`${w} ${label} ${p}→${q}`);
+    num('Altitude', x.tower, y.tower);
+    num('Armor', x.wall, y.wall);
+    num('Ward', x.ward, y.ward);
+    for (const r of RESOURCES) num(RES_LABEL[r], x.res[r], y.res[r]);
+    for (const r of RESOURCES) num(GEN_LABEL[r], x.gen[r], y.gen[r]);
+    if (y.burnTurns > 0 && (y.burn !== x.burn || y.burnTurns > x.burnTurns)) out.push(`${w} ship is burning (${y.burn} a turn for ${y.burnTurns} turns)`);
+    for (const id of y.buildings.filter((m) => !x.buildings.includes(m))) out.push(`${w} new module ${building(id).icon} ${building(id).name}`);
+    for (const id of x.buildings.filter((m) => !y.buildings.includes(m))) out.push(`${w} ${building(id).icon} ${building(id).name} is destroyed`);
+    const j = junkCount(y) - junkCount(x);
+    if (j > 0) out.push(`${j} Junk shuffled into ${w} deck`);
+  }
+  return out;
+}
+
+function describeBeat(b: Beat, prev: [Player, Player]): Line {
+  const actor = b.player === HUMAN ? 'You' : state.players[AI].name;
+  const owner = b.player === HUMAN ? 'Your' : 'Their';
+  const ch = changes(prev, b.after);
+  const tail = ch.length ? `: ${ch.join(', ')}` : '';
+  let text: string;
+  switch (b.kind) {
+    case 'card': text = `${actor} played ${b.name}${tail}`; break;
+    case 'discard': text = `${actor} discarded ${b.name}`; break;
+    case 'power': text = `${actor} used ${b.name}${tail}`; break;
+    case 'income': {
+      const gains = RESOURCES.map((r) => b.after[b.player].res[r] - prev[b.player].res[r]).map((d, k) => `+${d} ${RES_LABEL[RESOURCES[k]]}`);
+      text = `${owner} income: ${gains.join(', ')}`;
+      break;
+    }
+    case 'module': text = `${owner} module ${b.name}${tail}`; break;
+    case 'relic': text = `${b.name} (${b.player === HUMAN ? 'yours' : 'theirs'})${tail}`; break;
+    case 'burn': text = `${owner} ship burns${tail}`; break;
+    case 'weather': text = `The weather changes: ${b.name}. ${b.text}`; break;
+  }
+  return { turn: state.turn, player: b.player, icon: b.kind === 'card' || b.kind === 'discard' ? (b.player === HUMAN ? '🟢' : '🔴') : b.icon, text: cap(text) };
+}
+
+function narrate(line: Line, record = true): void {
+  const n = $('narration');
+  n.innerHTML = `<span class="nar-icon">${line.icon}</span><span>${esc(line.text)}</span>`;
+  n.className = `narration p${line.player}`;
+  void n.offsetWidth;
+  n.classList.add('show');
+  if (!record) return;
+  history.push(line);
+  roundLines.push(line);
+  renderLastTurn();
+  renderLog();
+}
+
+function renderLastTurn(): void {
+  const el = $('last-turn');
+  el.innerHTML = roundLines.length
+    ? `<b>Last turn</b>${roundLines.map((l) => `<span class="lt p${l.player}">${l.icon} ${esc(l.text)}</span>`).join('')}`
+    : '<b>Last turn</b><span class="lt dim">Nothing yet. Every move will be listed here.</span>';
+  el.scrollLeft = el.scrollWidth;
+}
+
+function renderLog(): void {
+  let lastTurn = -1;
+  $('log-list').innerHTML = [...history]
+    .reverse()
+    .map((l) => {
+      const head = l.turn !== lastTurn ? `<li class="log-turn">Turn ${l.turn}</li>` : '';
+      lastTurn = l.turn;
+      return `${head}<li class="p${l.player}">${l.icon} ${esc(l.text)}</li>`;
+    })
+    .join('') || '<li class="dim">Nothing has happened yet.</li>';
+}
+
+// ── Juice for one effect: floating numbers, shakes and sounds ──
+
+function effects(prev: [Player, Player], next: [Player, Player], b: Beat): void {
   let towerLoss = 0;
   let armorHit = false;
   let warded = false;
-  let burned = false;
+  let built = false;
+  let hitMe = false;
   ([0, 1] as const).forEach((i) => {
-    const a = before.players[i];
-    const b = after.players[i];
+    const a = prev[i];
+    const c = next[i];
     const panel = $(`panel-${i}`);
     const ship = $(`ship-${i}`);
-    const keys: [string, number, number][] = RESOURCES.map((r) => [r, a.res[r], b.res[r]] as [string, number, number]);
-    for (const [k, x, y] of keys) if (x !== y) floatAt(panel.querySelector(`[data-k="${k}"]`), signed(y - x), y > x ? 'up' : 'down');
-    // Altitude and armor changes float over the ships, big enough to see on a phone.
-    if (b.tower !== a.tower) floatAt(ship.querySelector('.alt-num'), signed(b.tower - a.tower), `big ${b.tower > a.tower ? 'up' : 'down'}`);
-    if (b.wall !== a.wall) floatAt(ship.querySelector('.ship-svg'), `🛡️${signed(b.wall - a.wall)}`, b.wall > a.wall ? 'up' : 'down');
-    if (b.ward !== a.ward) floatAt(ship.querySelector('.ship-body'), `💠${signed(b.ward - a.ward)}`, b.ward > a.ward ? 'up' : 'down');
-    if (b.burn > a.burn) floatAt(ship.querySelector('.ship-body'), '🔥 Burning', 'down');
-    for (const r of RESOURCES) {
-      if (a.gen[r] !== b.gen[r]) {
-        floatAt(panel.querySelector(`[data-k="${r}"]`), `${signed(b.gen[r] - a.gen[r])} ${GEN_LABEL[r]}`, b.gen[r] > a.gen[r] ? 'up' : 'down');
-        if (b.gen[r] > a.gen[r]) built = true;
-      }
-    }
+    for (const r of RESOURCES) if (a.res[r] !== c.res[r]) floatAt(panel.querySelector(`[data-k="${r}"]`), signed(c.res[r] - a.res[r]), c.res[r] > a.res[r] ? 'up' : 'down');
+    if (c.tower !== a.tower) floatAt(ship.querySelector('.alt-num'), signed(c.tower - a.tower), `big ${c.tower > a.tower ? 'up' : 'down'}`);
+    if (c.wall !== a.wall) floatAt(ship.querySelector('.ship-svg'), `🛡️${signed(c.wall - a.wall)}`, c.wall > a.wall ? 'up' : 'down');
+    if (c.ward !== a.ward) floatAt(ship.querySelector('.ship-body'), `💠${signed(c.ward - a.ward)}`, c.ward > a.ward ? 'up' : 'down');
+    if (c.burnTurns > a.burnTurns || (c.burnTurns && c.burn > a.burn)) floatAt(ship.querySelector('.ship-body'), '🔥 Burning', 'down');
+    for (const r of RESOURCES)
+      if (a.gen[r] !== c.gen[r]) floatAt(panel.querySelector(`[data-k="${r}"]`), `${signed(c.gen[r] - a.gen[r])} ${GEN_LABEL[r]}`, c.gen[r] > a.gen[r] ? 'up' : 'down');
     const slotsEl = panel.querySelector('[data-k="buildings"]');
-    const added = b.buildings.filter((id) => !a.buildings.includes(id));
-    const lost = a.buildings.filter((id) => !b.buildings.includes(id));
-    for (const id of added) floatAt(slotsEl, `${building(id).icon} installed`, 'up');
-    for (const id of lost) floatAt(slotsEl, `${building(id).icon} destroyed`, 'down');
-    if (added.length) built = true;
-    if (lost.length) hit = true;
-    const rub = (p: Player) => [...p.deck, ...p.hand, ...p.discard].filter((x) => x === 'rubble').length;
-    if (rub(b) > rub(a)) floatAt(panel.querySelector('.p-head'), `+${rub(b) - rub(a)} 🗑️ Junk`, 'down');
-    towerLoss = Math.max(towerLoss, a.tower - b.tower);
-    if (b.wall < a.wall) armorHit = true;
-    if (b.ward > a.ward) warded = true;
-    if (b.burn > a.burn) burned = true;
-    if (b.tower < a.tower || b.wall < a.wall) {
-      hit = true;
+    for (const id of c.buildings.filter((m) => !a.buildings.includes(m))) floatAt(slotsEl, `${building(id).icon} installed`, 'up');
+    for (const id of a.buildings.filter((m) => !c.buildings.includes(m))) floatAt(slotsEl, `${building(id).icon} destroyed`, 'down');
+    const j = junkCount(c) - junkCount(a);
+    if (j > 0) floatAt(panel.querySelector('.p-head'), `+${j} 🗑️ Junk`, 'down');
+    towerLoss = Math.max(towerLoss, a.tower - c.tower);
+    if (c.wall < a.wall) armorHit = true;
+    if (c.ward > a.ward) warded = true;
+    if (c.tower > a.tower || c.wall > a.wall || c.buildings.length > a.buildings.length) built = true;
+    if (c.tower < a.tower || c.wall < a.wall) {
+      if (i === HUMAN) hitMe = true;
       ship.classList.remove('hit');
       void ship.offsetWidth;
       ship.classList.add('hit');
     }
-    if (b.tower > a.tower || b.wall > a.wall || b.ward > a.ward) built = true;
   });
-
-  const la = after.lastAction;
-  const newCard = after.log.slice(before.log.length).some((l) => l.kind === 'play' || l.kind === 'discard');
-  if (newCard && la?.kind === 'discard') sfx.discard();
-  else if (la) {
-    if (newCard) sfx.card();
-    if (newCard && card(la.cardId).type === 'mana') sfx.magic();
-    // Cannon fire when Altitude drops (a big boom for heavy hits), clanging plates when only Armor takes it.
-    if (towerLoss > 0) setTimeout(() => sfx.hit(towerLoss >= 10), 120);
-    else if (armorHit) setTimeout(sfx.armor, 120);
-    else if (warded) setTimeout(sfx.ward, 80);
-    else if (built) setTimeout(sfx.build, 80);
-    if (burned) setTimeout(sfx.burn, 300);
+  if (b.kind === 'discard') sfx.discard();
+  if (b.kind === 'card') {
+    if (b.player === HUMAN) sfx.card();
+    if (b.cardId && card(b.cardId).type === 'mana') sfx.magic();
   }
-  if (hit && la?.player === AI && !isMuted()) navigator.vibrate?.(40);
-
-  if (after.event !== before.event && after.event) {
-    const e = EVENT_MAP[after.event];
-    setTimeout(() => {
-      sfx.event();
-      toast(`<div class="toast-icon">${e.icon}</div><b>${e.name}</b><span>${e.text}</span>`);
-    }, 350);
+  if (b.kind === 'power' && b.player === AI) sfx.power();
+  if (b.kind === 'weather') {
+    sfx.event();
+    toast(`<div class="toast-icon">${b.icon}</div><b>${esc(b.name)}</b><span>${esc(b.text ?? '')}</span>`);
   }
+  if (b.kind === 'income') return;
+  if (towerLoss > 0) setTimeout(() => sfx.hit(towerLoss >= 10), 120);
+  else if (armorHit) setTimeout(sfx.armor, 120);
+  else if (warded) setTimeout(sfx.ward, 80);
+  else if (built) setTimeout(sfx.build, 80);
+  if (b.kind === 'burn') sfx.burn();
+  if (hitMe && !isMuted()) navigator.vibrate?.(40);
+}
+
+/** Show a card in the middle of the battlefield; `spotlight` makes it big for the opponent's play. */
+function showCard(cardId: string, player: 0 | 1, discarded: boolean, spotlight: boolean): void {
+  const slot = $('played-slot');
+  slot.innerHTML = '';
+  slot.classList.toggle('spotlight', spotlight);
+  const el = cardFace(cardId);
+  el.classList.add('pop', player === HUMAN ? 'from-me' : 'from-opp');
+  if (discarded) el.classList.add('discarded');
+  slot.appendChild(el);
+  const tag = document.createElement('div');
+  tag.className = 'played-by';
+  tag.textContent = `${player === HUMAN ? 'You' : state.players[player].name} ${discarded ? 'discarded' : 'played'}`;
+  slot.appendChild(tag);
+}
+
+/** How long each kind of effect stays on screen (before the speed setting). */
+const HOLD: Record<Beat['kind'], number> = { card: 750, discard: 600, power: 750, income: 420, module: 800, relic: 800, burn: 800, weather: 1400 };
+
+/** Play one step back slowly: each effect lands on its own, with a caption saying what happened. */
+async function playStep(before: GameState, after: GameState): Promise<boolean> {
+  const gen = generation;
+  let prev = before.players;
+  let prevEvent = before.event;
+  for (const b of after.beats ?? []) {
+    if (gen !== generation) return false;
+    // The opponent's turn begins with their income: start a fresh "Last turn" strip.
+    if (b.kind === 'income' && b.player === AI) {
+      roundLines = [];
+      renderLastTurn();
+    }
+    const line = describeBeat(b, prev);
+    const quiet = changes(prev, b.after).length === 0 && b.kind !== 'card' && b.kind !== 'discard' && b.kind !== 'weather' && b.kind !== 'power';
+    if (quiet) {
+      prev = b.after;
+      continue;
+    }
+    // The opponent's card gets a moment in the spotlight before it lands, so you can read it.
+    if (b.player === AI && b.cardId && (b.kind === 'card' || b.kind === 'discard')) {
+      showCard(b.cardId, AI, b.kind === 'discard', true);
+      narrate({ ...line, text: `${state.players[AI].name} ${b.kind === 'card' ? 'plays' : 'discards'} ${b.name}…` }, false);
+      sfx.card();
+      await wait(1000);
+      if (gen !== generation) return false;
+    } else if (b.player === HUMAN && b.cardId) showCard(b.cardId, HUMAN, b.kind === 'discard', false);
+    state = { ...after, players: b.after, event: b.event };
+    renderPanel(0);
+    renderPanel(1);
+    renderShip(0);
+    renderShip(1);
+    if (b.event !== prevEvent) renderEvent();
+    effects(prev, b.after, { ...b, kind: b.kind === 'card' && b.player === AI ? 'card' : b.kind });
+    narrate(line);
+    await wait(HOLD[b.kind]);
+    prev = b.after;
+    prevEvent = b.event;
+  }
+  $('played-slot').classList.remove('spotlight');
+  return gen === generation;
 }
 
 // ── Flow ───────────────────────────────────────────────────────
 
-function apply(action: Action): void {
+async function apply(action: Action): Promise<void> {
+  const gen = generation;
   const before = state;
-  state = step(state, action, rules);
+  const after = step(state, action, rules, true);
   selected = null;
+  busy = true;
+  renderHands();
+  renderSheet();
+  const ok = await playStep(before, after);
+  if (!ok || gen !== generation) return;
+  state = after;
+  busy = false;
   render();
-  showDiffs(before, state);
   if (state.winner !== null) {
     const done = state;
-    const gen = generation;
+    narrate({ turn: done.turn, player: done.winner === HUMAN ? HUMAN : AI, icon: done.winner === HUMAN ? '🏆' : '💥', text: done.winReason ?? 'The battle is over' });
     setTimeout(() => {
       if (gen !== generation) return;
       if (done.winner === HUMAN) sfx.win();
       else sfx.lose();
       onEnd?.(done);
-    }, 900);
+    }, 1400);
+    return;
   }
+  maybeTip();
 }
 
 function act(action: Action, el?: HTMLElement): void {
   if (busy) return;
-  el?.classList.add(action.kind === 'play' ? 'leaving' : 'tossing');
+  hideTip();
+  if (action.kind !== 'power') el?.classList.add(action.kind === 'play' ? 'leaving' : 'tossing');
   busy = true;
   selected = null;
   renderSheet();
   const gen = generation;
-  setTimeout(() => {
+  setTimeout(async () => {
     if (gen !== generation) return;
     busy = false;
-    apply(action);
-    maybeAiTurn();
+    await apply(action);
+    if (gen === generation) maybeAiTurn();
   }, 180);
 }
 
 function maybeAiTurn(): void {
   if (state.winner !== null || state.current !== AI || !config) return;
   busy = true;
+  hideTip();
   renderHands();
+  narrate({ turn: state.turn, player: AI, icon: '🤔', text: `${state.players[AI].name} is thinking…` }, false);
   const gen = generation;
-  setTimeout(() => {
+  setTimeout(async () => {
     if (gen !== generation) return;
     const action = chooseAction(state, config!.difficulty, rules);
     busy = false;
-    apply(action);
-    maybeAiTurn();
-  }, AI_DELAY);
+    await apply(action);
+    if (gen === generation) maybeAiTurn();
+  }, Math.round(650 * PACE[speed]));
 }
 
 export function startBattle(cfg: BattleConfig, done: (s: GameState) => void): void {
@@ -550,7 +717,13 @@ export function startBattle(cfg: BattleConfig, done: (s: GameState) => void): vo
   });
   $('goal-label').textContent = `⚓ High harbor · ${rules.winTower}`;
   busy = false;
+  history = [];
+  roundLines = [];
+  renderLastTurn();
+  renderLog();
+  $('narration').className = 'narration';
   render();
+  setTimeout(() => maybeTip(), 1200);
   const f = FACTION_MAP[cfg.factions[1]];
   toast(
     `<div class="toast-icon">${f.icon}</div><b>vs ${esc(cfg.enemyName)}</b><span>${f.name}: ${f.perks.join(' · ')}</span>` +
@@ -576,6 +749,16 @@ export function initBattleChrome(): void {
   // Dev builds only: poke at the live battle from the console.
   if (import.meta.env.DEV) Object.assign(window, { keepfall: { state: () => state, render } });
   $('power-btn').addEventListener('click', usePower);
+  renderSpeed();
+  $('btn-speed').addEventListener('click', () => {
+    speed = SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length];
+    localStorage.setItem('keepfall.speed', speed);
+    renderSpeed();
+    sfx.click();
+    toast(`<b>${SPEED_LABEL[speed][0]} ${SPEED_LABEL[speed][1]} speed</b><span>${speed === 'slow' ? 'Every move stays on screen longer.' : speed === 'fast' ? 'Moves play out quickly.' : 'The standard pace.'}</span>`);
+  });
+  $('last-turn').addEventListener('click', () => ($('log').hidden = false));
+  initTips(() => state, () => myTurn(), () => busy);
   $('btn-log').addEventListener('click', () => {
     const log = $('log');
     log.hidden = !log.hidden;

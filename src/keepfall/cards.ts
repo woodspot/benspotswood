@@ -310,7 +310,7 @@ export function describeOp(o: Op): string {
       return `Steal ${o.amt} ${RES_LABEL[o.res]}`;
     case 'build': {
       const b = building(o.building);
-      return `${b.icon} Each turn: ${b.ops.map(describeOp).join(', ')}`;
+      return `${b.icon} Module: ${b.ops.map(describeOp).join(', ')} every turn`;
     }
     case 'demolish':
       return 'Destroy an enemy module';

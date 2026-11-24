@@ -2,6 +2,7 @@ import { isLinked, lastSynced, link, sync, syncOnOpen, unlink } from '../kids/sy
 import { ICON_CREDIT } from './art';
 import type { Difficulty } from './ai';
 import { abandonBattle, getState, initBattleChrome, startBattle, voice } from './battle';
+import { resetTips } from './tips';
 import {
   ACT_INFO, ACTS, applyDailyMods, BOSSES, battleSetup, buyItem, buyService, camp, canCamp, canChoose, canService, chooseNode,
   currentNode, finishBattle, FLOORS_PER_ACT, isCurrentRun, leaveDock, leaveMarket, MAX_SIEGE, MIN_DECK, newRun, NODE_INFO,
@@ -225,6 +226,26 @@ const HOW_TO = `
     <p><b>Keywords.</b> 💠 <b>Ward</b> blocks enemy damage, spells and burns before your Armor. 🔥 <b>Burn</b> takes Altitude at the start of the enemy's turns, ignoring Armor. ⚡ <b>Combo</b> triggers if you already played a card this turn. <b>Choose</b> cards let you pick one effect. 🗑️ <b>Junk</b> does nothing and leaves the deck when played.</p>
     <p><b>Campaigns</b> cross three acts, each ending in a boss. Win battles for gold and cards, spend gold at 🛒 markets, take chances at ❓ events, and refit at ⚓ docks (upgrade, ✨ enchant or remove cards). Your <b>captain</b>'s power button can be used once per battle without ending your turn.</p>
     <p><b>On a phone</b>, tap a card to see what it would do (the +/− badges), then tap Play. Tap any icon for details.</p>
+    <details class="glossary-box"><summary><b>📖 Glossary: what everything means</b></summary>
+      <dl class="glossary">
+        <dt>🎈 Altitude</dt><dd>How high your ship flies. Reach ${rules.winTower} to win; at 0 your ship goes down.</dd>
+        <dt>🛡️ Armor</dt><dd>Plating that soaks up damage first. A 6-damage shot against 4 Armor removes the Armor and 2 Altitude.</dd>
+        <dt>💠 Ward</dt><dd>A shield that blocks the next damage, spell or burn before it reaches Armor or Altitude.</dd>
+        <dt>🔥 Burn</dt><dd>A burning ship loses Altitude at the start of each of its turns, straight past Armor. “Burn 2 for 3 turns” = 6 Altitude in total.</dd>
+        <dt>⚙️🔮💣 Resources and income</dt><dd>Iron, Aether and Powder pay for cards. Your Foundry, Aether Well and Powder Mill add their level in resources at the start of every turn. Cards that say “+1 Foundry” raise your income for the rest of the battle.</dd>
+        <dt>🔧 Modules</dt><dd>Cards that stay aboard after you play them. Each sits in one of your 3 module slots and acts at the start of every one of your turns. Example: the 🔧 Repair Crew gives +2 Armor every turn. A 4th module replaces your oldest. “Destroy an enemy module” removes their most valuable one.</dd>
+        <dt>⚡ Combo</dt><dd>A bonus that happens only if you already played a card this turn (after a “Play again” card, for example).</dd>
+        <dt>↻ Play again</dt><dd>After this card, you take another turn straight away.</dd>
+        <dt>🔀 Choose</dt><dd>Cards with options: pick one when you play it.</dd>
+        <dt>🗑️ Junk</dt><dd>Dud cards an enemy pushes into your deck. They do nothing; play or discard them to get rid of them.</dd>
+        <dt>⛅ Weather</dt><dd>Every few turns the weather changes the rules for both ships (shown in the banner). Weather cards change it on the spot.</dd>
+        <dt>✨ Enchantments</dt><dd>Made at docks and markets: Gilded (costs 1 less), Twin (adds Play again), Burning (adds Burn 2 for 2 turns).</dd>
+        <dt>💍 Relics, 👥 crew and enemy traits</dt><dd>Permanent bonuses for a campaign. Some act every turn (for example “Each turn: +1 Armor”). Tap any icon in a battle to read it.</dd>
+        <dt>🧑‍✈️ Captain’s power</dt><dd>The button above your hand: use it once per battle (twice at level 5). It doesn’t end your turn.</dd>
+      </dl>
+    </details>
+    <p><b>Following a battle.</b> Each move plays out one effect at a time with a caption saying what happened; the <b>Last turn</b> strip above your hand lists everything since the opponent’s last turn began (tap it for the full log). Change the pace with the ▶️ speed button.</p>
+    <p><button class="ghost small" data-act="tips-reset">💡 Show the battle tips again</button></p>
     <p class="dim small credit">${ICON_CREDIT} Sound effects by Kenney (kenney.nl), CC0.</p>
   </details>`;
 
@@ -511,6 +532,10 @@ function showMenu(): void {
         return showRunEnd(run);
       }
       showMenu();
+    },
+    'tips-reset': () => {
+      resetTips();
+      toast('<b>💡 Tips are back on</b><span>They’ll appear in your next battle.</span>');
     },
     ...syncHandlers,
   });

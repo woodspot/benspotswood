@@ -658,3 +658,64 @@ html[data-cardback="gold"] .card-back { background: linear-gradient(135deg, #ffe
   .power-btn { padding: 3px 9px; font-size: .75rem; margin-right: 6px; }
   .power-btn .pw-name { max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
+
+/* ── Making each turn readable ─────────────────────────────── */
+/* Caption bar: says what just happened, in words */
+.narration {
+  position: absolute; z-index: 8; left: 50%; top: 36px; transform: translateX(-50%); width: max-content; max-width: 92%;
+  background: rgba(10,14,26,.86); border: 1px solid var(--line); border-radius: 12px; padding: 6px 12px;
+  font-size: .88rem; line-height: 1.3; display: flex; gap: 8px; align-items: flex-start; opacity: 0; pointer-events: none;
+  box-shadow: 0 6px 18px rgba(0,0,0,.4);
+}
+.narration.show { animation: narIn .25s ease-out forwards; }
+.narration.p0 { border-color: color-mix(in srgb, var(--me) 60%, var(--line)); }
+.narration.p1 { border-color: color-mix(in srgb, var(--opp) 70%, var(--line)); }
+.nar-icon { flex: none; }
+@keyframes narIn { from { opacity: 0; transform: translate(-50%, -6px); } to { opacity: 1; transform: translate(-50%, 0); } }
+
+/* The opponent's card is shown big for a moment before it lands */
+.played-slot.spotlight { z-index: 6; }
+.played-slot.spotlight .card { transform: scale(1.15) translateY(14px); box-shadow: 0 0 0 3px var(--opp), 0 16px 40px rgba(0,0,0,.6); transition: transform .25s; }
+.played-slot.spotlight .played-by { margin-top: 18px; background: var(--opp); color: #fff; font-weight: 700; }
+
+/* Last turn strip: every move since the opponent's last turn began */
+.last-turn {
+  display: flex; gap: 6px; align-items: center; width: 100%; overflow-x: auto; white-space: nowrap; scrollbar-width: none;
+  background: rgba(0,0,0,.22); border: 1px solid var(--line); border-radius: 10px; padding: 5px 8px; margin: 8px 0 0; color: var(--text);
+  font: inherit; font-size: .78rem; text-align: left; cursor: pointer;
+}
+.last-turn::-webkit-scrollbar { display: none; }
+.last-turn b { color: var(--dim); flex: none; text-transform: uppercase; font-size: .68rem; letter-spacing: .05em; }
+.lt { flex: none; padding: 2px 8px; border-radius: 99px; background: rgba(255,255,255,.05); }
+.lt.p0 { color: #9fe3bd; }
+.lt.p1 { color: #f2aaa4; }
+.log { width: 330px; }
+.log li.log-turn { color: var(--dim); font-size: .7rem; text-transform: uppercase; letter-spacing: .06em; border-bottom: 0; padding-top: 8px; }
+
+/* First-battle tips */
+.tip-bubble {
+  position: fixed; z-index: 110; background: #fff8e6; color: #2a2014; border-radius: 12px; padding: 10px 12px 8px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.45); font-size: .88rem; line-height: 1.35; animation: tipIn .25s ease-out;
+}
+.tip-bubble[hidden] { display: none; }
+.tip-bubble p { margin: 0 0 8px; }
+.tip-bubble div { display: flex; gap: 8px; justify-content: flex-end; }
+.tip-bubble button { border: 0; border-radius: 99px; padding: 5px 12px; font-weight: 800; background: var(--accent); color: #1c1407; cursor: pointer; }
+.tip-bubble .tip-off { background: transparent; color: #8a7a5c; font-weight: 600; }
+.tip-bubble::before { content: ''; position: absolute; left: calc(var(--arrow, 50%) - 8px); width: 0; height: 0; border: 8px solid transparent; }
+.tip-bubble[data-side="below"]::before { top: -16px; border-bottom-color: #fff8e6; }
+.tip-bubble[data-side="above"]::before { bottom: -16px; border-top-color: #fff8e6; }
+@keyframes tipIn { from { opacity: 0; transform: translateY(6px); } }
+
+#btn-speed .ico { display: inline; margin-right: 4px; }
+.glossary dt { font-weight: 800; margin-top: 8px; }
+.glossary dd { margin: 2px 0 0 0; color: var(--dim); font-size: .85rem; }
+
+@media (max-width: 760px) {
+  .narration { top: 30px; font-size: .74rem; padding: 4px 9px; max-width: 96%; }
+  .last-turn { margin: 4px 0 0; font-size: .68rem; padding: 3px 6px; }
+  .played-slot.spotlight .card { transform: scale(1.45); }
+  #btn-speed .lbl { display: none; }
+  #btn-speed .ico { margin: 0; }
+  .log { width: auto; }
+}

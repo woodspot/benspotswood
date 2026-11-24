@@ -118,6 +118,22 @@ export interface GameState {
   lastAction?: { player: 0 | 1; kind: 'play' | 'discard'; cardId: string };
   event: string | null; // id of the active shared event, if any
   chain: number; // cards the current player has played this turn (for Combo)
+  beats?: Beat[]; // what the last step did, one effect at a time (only when asked to record)
+}
+
+/**
+ * One visible effect of a step, for playing a turn back slowly: the card, each player's income,
+ * each module, relic or trait that acted, burns, weather changes. `after` is both players right after it.
+ */
+export interface Beat {
+  kind: 'card' | 'discard' | 'power' | 'income' | 'module' | 'relic' | 'burn' | 'weather';
+  player: 0 | 1; // whose card, module, relic…
+  icon: string;
+  name: string;
+  cardId?: string;
+  text?: string; // weather description
+  after: [Player, Player];
+  event: string | null;
 }
 
 export interface Rules {

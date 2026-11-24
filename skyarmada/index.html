@@ -14,6 +14,7 @@
       <a class="back" href="/" title="All games">←</a>
       <h1>Sky Armada</h1>
       <div id="turn-indicator" class="turn"></div>
+      <button id="btn-speed" class="ghost" title="Battle speed"></button>
       <button id="btn-mute" class="ghost icon" title="Sound on/off">🔊</button>
       <button id="btn-log" class="ghost" title="Battle log"><span class="ico">📜</span><span class="lbl">Log</span></button>
       <button id="btn-menu" class="ghost" title="Menu"><span class="ico">☰</span><span class="lbl">Menu</span></button>
@@ -25,6 +26,7 @@
       <aside class="panel" id="panel-0"></aside>
       <div class="field" id="field">
         <div class="event-banner" id="event-banner"></div>
+        <div class="narration" id="narration"></div>
         <div class="goal-line" id="goal-line"><span id="goal-label"></span></div>
         <div class="clouds" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
         <div class="ship" id="ship-0"></div>
@@ -38,6 +40,7 @@
       <aside class="panel" id="panel-1"></aside>
     </main>
 
+    <button class="last-turn" id="last-turn" title="Tap for the full battle log"></button>
     <section class="hand-area">
       <div class="hint"><button id="power-btn" class="power-btn" hidden></button><span id="hint"></span> <span class="deck-count" id="deck-count"></span></div>
       <div class="hand" id="hand"></div>
@@ -51,6 +54,7 @@
 
   <div class="toast" id="toast"></div>
   <div class="info-pop" id="info-pop" hidden></div>
+  <div class="tip-bubble" id="tip" hidden></div>
 
   <div class="overlay" id="overlay">
     <div class="dialog" id="dialog"></div>
