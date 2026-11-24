@@ -8,8 +8,22 @@ export interface Part {
   lang: Lang;
   pitch?: number; // characters can sound higher or lower (1 = normal)
   rate?: number; // speed (1 = normal)
-  voice?: 'female' | 'male'; // which kind of voice to use (default female)
+  voice?: VoiceKey; // who is speaking (default 'female')
 }
+
+/**
+ * Who is speaking. 'female'/'male' are the game's narrators; the rest are phone characters.
+ * Each gets its own voice in the pre-recorded clips; on the device's own speech they map to a gender.
+ */
+export type VoiceKey = 'female' | 'male' | 'grandma' | 'grandpa' | 'mommy' | 'daddy' | 'santa' | 'critter' | 'bigcritter';
+
+export const VOICE_GENDER: Record<VoiceKey, 'female' | 'male'> = {
+  female: 'female', male: 'male', grandma: 'female', grandpa: 'male', mommy: 'female', daddy: 'male',
+  santa: 'male', critter: 'female', bigcritter: 'male',
+};
+
+/** How a pre-recorded clip is looked up: language, voice and exact words. */
+export const clipKey = (p: Part) => `${p.lang}|${p.voice ?? 'female'}|${p.text}`;
 export const en = (text: string): Part => ({ text, lang: 'en' });
 export const es = (text: string): Part => ({ text, lang: 'es' });
 

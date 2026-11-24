@@ -1,5 +1,8 @@
-// Sounds are synthesised (no files to load) and the voice uses the device's built-in speech.
-// Both need a first tap before they work on iPhone and iPad, so unlock() runs on the Play button.
+// Sounds are synthesised (no files to load). Speech uses, in order of preference:
+//   1. a family recording (Toy Phone plays those itself with playBlob),
+//   2. a pre-recorded natural voice clip from /voice/ (see scripts/gen-voices.mjs),
+//   3. the device's built-in speech.
+// Audio needs a first tap before it works on iPhone and iPad, so unlock() runs on the Play button.
 
 let ctx: AudioContext | null = null;
 
@@ -80,7 +83,7 @@ export const sfx = {
 };
 
 // Voices: the best natural-sounding one the device has, per language and gender (see voices.ts).
-import { en, type Lang, type Part } from './words';
+import { clipKey, en, VOICE_GENDER, type Lang, type Part } from './words';
 import { pickVoice, type Gender } from './voices';
 export { en, es, type Lang, type Part } from './words';
 
@@ -100,27 +103,134 @@ export const isVoiceOn = () => voiceOn;
 export function setVoiceOn(on: boolean): void {
   voiceOn = on;
   localStorage.setItem('kids.voice', on ? 'on' : 'off');
-  if (!on && 'speechSynthesis' in window) speechSynthesis.cancel();
+  if (!on) stopSpeech();
 }
 
-/** Say something, cutting off whatever was being said. Mixed-language lines are spoken part by part. */
-export function say(line: string | Part[]): void {
-  if (!voiceOn || !('speechSynthesis' in window)) return;
-  const parts = (typeof line === 'string' ? [en(line)] : line).filter((p) => p.text);
-  if (!parts.length) return;
-  speechSynthesis.cancel();
+// ── Pre-recorded clips ─────────────────────────────────────────
+
+let manifest: Record<string, string> = {};
+void fetch('/voice/manifest.json')
+  .then((r) => (r.ok ? r.json() : {}))
+  .then((m) => (manifest = m))
+  .catch(() => {});
+
+const buffers = new Map<string, Promise<AudioBuffer | null>>();
+function bufferFor(url: string): Promise<AudioBuffer | null> {
+  if (!ctx) return Promise.resolve(null);
+  const c = ctx;
+  let b = buffers.get(url);
+  if (!b) {
+    b = fetch(url)
+      .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(String(r.status)))))
+      .then((data) => c.decodeAudioData(data))
+      .catch(() => null);
+    buffers.set(url, b);
+  }
+  return b;
+}
+const clipUrl = (p: Part) => {
+  const f = manifest[clipKey(p)];
+  return f ? `/voice/${f}` : null;
+};
+
+/** Fetch clips ahead of time (e.g. the keypad numbers) so the first tap has no delay. */
+export function preload(parts: Part[]): void {
   for (const p of parts) {
+    const url = clipUrl(p);
+    if (url) void bufferFor(url);
+  }
+}
+
+// ── Speaking, one part after another ───────────────────────────
+
+let seq = 0; // bumps on every new line, so older lines stop
+let source: AudioBufferSourceNode | null = null;
+
+export function stopSpeech(): void {
+  seq++;
+  try {
+    source?.stop();
+  } catch {
+    /* already stopped */
+  }
+  source = null;
+  if ('speechSynthesis' in window) speechSynthesis.cancel();
+}
+
+function playBuffer(buf: AudioBuffer, my: number, rate = 1): Promise<void> {
+  return new Promise((resolve) => {
+    if (!ctx || my !== seq) return resolve();
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.playbackRate.value = rate;
+    const g = ctx.createGain();
+    g.gain.value = 0.95;
+    src.connect(g).connect(ctx.destination);
+    src.onended = () => resolve();
+    source = src;
+    src.start();
+  });
+}
+
+function speakDevice(p: Part, my: number): Promise<void> {
+  return new Promise((resolve) => {
+    if (!('speechSynthesis' in window) || my !== seq) return resolve();
     const u = new SpeechSynthesisUtterance(p.text);
-    const v = voiceFor(p.lang, p.voice ?? 'female');
+    const v = voiceFor(p.lang, VOICE_GENDER[p.voice ?? 'female']);
     u.lang = v?.lang ?? (p.lang === 'es' ? 'es-MX' : 'en-US');
     if (v) u.voice = v;
     // Learning words a touch slower. Pitch stays close to 1: big pitch shifts sound robotic.
     u.rate = p.rate ?? (p.lang === 'es' ? 0.88 : 0.95);
     u.pitch = p.pitch ?? 1;
     u.volume = 0.85;
+    // Some devices never fire "end"; don't wait forever.
+    const timer = setTimeout(resolve, 1500 + p.text.length * 110);
+    u.onend = u.onerror = () => {
+      clearTimeout(timer);
+      resolve();
+    };
     speechSynthesis.speak(u);
+  });
+}
+
+/**
+ * Say something, cutting off whatever was being said. Mixed-language lines are spoken part by part.
+ * Resolves when it has finished (or been cut off), e.g. to stop a "talking" animation.
+ */
+export async function say(line: string | Part[]): Promise<void> {
+  if (!voiceOn) return;
+  const parts = (typeof line === 'string' ? [en(line)] : line).filter((p) => p.text);
+  if (!parts.length) return;
+  stopSpeech();
+  const my = seq;
+  // Start fetching every clip at once so there are no gaps between parts.
+  const pending = parts.map((p) => {
+    const url = clipUrl(p);
+    return url ? bufferFor(url) : Promise.resolve(null);
+  });
+  for (let i = 0; i < parts.length; i++) {
+    const buf = await pending[i];
+    if (my !== seq) return;
+    if (buf) await playBuffer(buf, my);
+    else await speakDevice(parts[i], my);
   }
 }
+
+/** Play a recording (e.g. Grandma's own "hello"), cutting off other speech. */
+export async function playBlob(blob: Blob): Promise<void> {
+  stopSpeech();
+  const my = seq;
+  if (!ctx) return;
+  try {
+    const buf = await ctx.decodeAudioData(await blob.arrayBuffer());
+    await playBuffer(buf, my);
+  } catch {
+    /* unreadable recording: stay quiet */
+  }
+}
+
+/** Does this line have a pre-recorded clip for every part? (Used by tests and the voice report.) */
+export const hasClips = (parts: Part[]) => parts.every((p) => clipUrl(p));
 
 /** The "Voice on / Voice off" button on a start screen. */
 export function bindVoiceButton(btn: HTMLElement): void {

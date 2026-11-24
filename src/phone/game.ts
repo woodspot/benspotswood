@@ -1,5 +1,5 @@
 // Toy Phone: the words and characters, kept free of the DOM so they can be tested.
-import { en, es, NUMBER_WORDS, type Lang, type Part } from '../kids/words';
+import { en, es, NUMBER_WORDS, type Lang, type Part, type VoiceKey } from '../kids/words';
 
 // ── Keypad ─────────────────────────────────────────────────────
 
@@ -32,7 +32,7 @@ export interface Contact {
   color: string; // avatar background
   family: boolean; // a grown-up can rename these and add a photo
   pitch: number; // voice: 1 normal, lower is deeper (kept gentle: big shifts sound robotic)
-  voice: 'female' | 'male';
+  voice: VoiceKey;
   rate: number;
   name: { en: string; es: string };
   lines: Record<LineKind, { en: string[]; es: string[] }>;
@@ -60,26 +60,26 @@ const animalLines = (en1: string, es1: string) => ({
   bye: { en: [`${en1} Bye bye!`], es: [`${es1} ¡Adiós!`] },
 });
 
-const fam = (id: string, emoji: string, color: string, name: { en: string; es: string }, voice: 'female' | 'male', pitch: number, rate: number): Contact => ({
+export const fam = (id: string, emoji: string, color: string, name: { en: string; es: string }, voice: VoiceKey, pitch: number, rate: number): Contact => ({
   id, emoji, color, family: true, voice, pitch, rate, name, lines: familyLines(name),
 });
-const animal = (id: string, emoji: string, color: string, name: { en: string; es: string }, sound: [string, string], voice: 'female' | 'male' = 'female', pitch = 1.2): Contact => ({
+const animal = (id: string, emoji: string, color: string, name: { en: string; es: string }, sound: [string, string], voice: VoiceKey = 'critter', pitch = 1.2): Contact => ({
   id, emoji, color, family: false, voice, pitch, rate: 1, name, lines: animalLines(...sound),
 });
 
 export const CONTACTS: Contact[] = [
-  fam('grandma', '👵', '#f6a5c0', { en: 'Grandma', es: 'Abuela' }, 'female', 1, 0.88),
-  fam('grandpa', '👴', '#9cc7f2', { en: 'Grandpa', es: 'Abuelo' }, 'male', 0.92, 0.85),
-  fam('mommy', '👩', '#f7c873', { en: 'Mommy', es: 'Mamá' }, 'female', 1.05, 0.95),
-  fam('daddy', '👨', '#8fd6a8', { en: 'Daddy', es: 'Papá' }, 'male', 1, 0.95),
-  animal('dog', '🐶', '#e8c39e', { en: 'Doggy', es: 'Perrito' }, ['Woof woof!', '¡Guau guau!'], 'male', 1.15),
+  fam('grandma', '👵', '#f6a5c0', { en: 'Grandma', es: 'Abuela' }, 'grandma', 1, 0.88),
+  fam('grandpa', '👴', '#9cc7f2', { en: 'Grandpa', es: 'Abuelo' }, 'grandpa', 0.92, 0.85),
+  fam('mommy', '👩', '#f7c873', { en: 'Mommy', es: 'Mamá' }, 'mommy', 1.05, 0.95),
+  fam('daddy', '👨', '#8fd6a8', { en: 'Daddy', es: 'Papá' }, 'daddy', 1, 0.95),
+  animal('dog', '🐶', '#e8c39e', { en: 'Doggy', es: 'Perrito' }, ['Woof woof!', '¡Guau guau!'], 'bigcritter', 1.15),
   animal('cat', '🐱', '#ffd9a8', { en: 'Kitty', es: 'Gatito' }, ['Meow!', '¡Miau!']),
-  animal('cow', '🐮', '#d9e6f2', { en: 'Cow', es: 'Vaca' }, ['Moo!', '¡Muu!'], 'male', 0.85),
+  animal('cow', '🐮', '#d9e6f2', { en: 'Cow', es: 'Vaca' }, ['Moo!', '¡Muu!'], 'bigcritter', 0.85),
   animal('duck', '🦆', '#bfe3c0', { en: 'Duck', es: 'Pato' }, ['Quack quack!', '¡Cuac cuac!']),
-  animal('lion', '🦁', '#f3c96b', { en: 'Lion', es: 'León' }, ['Roar!', '¡Grrr!'], 'male', 0.8),
+  animal('lion', '🦁', '#f3c96b', { en: 'Lion', es: 'León' }, ['Roar!', '¡Grrr!'], 'bigcritter', 0.8),
   animal('pig', '🐷', '#f9c3d3', { en: 'Piggy', es: 'Cerdito' }, ['Oink oink!', '¡Oinc oinc!']),
   {
-    id: 'santa', emoji: '🎅', color: '#f28b82', family: false, voice: 'male', pitch: 0.85, rate: 0.85, name: { en: 'Santa', es: 'Santa' },
+    id: 'santa', emoji: '🎅', color: '#f28b82', family: false, voice: 'santa', pitch: 0.85, rate: 0.85, name: { en: 'Santa', es: 'Santa' },
     lines: {
       hello: { en: ['Ho ho ho! Hello there!'], es: ['¡Jo jo jo! ¡Hola!'] },
       more: { en: ['Have you been good? Ho ho ho!', 'My reindeer say hello!'], es: ['¿Te portaste bien? ¡Jo jo jo!', '¡Mis renos te saludan!'] },
@@ -113,8 +113,8 @@ export function lineFor(c: Contact, kind: LineKind, lang: Lang, rng: Rng, custom
 }
 
 /** Dialling a number calls someone; the same number always reaches the same friend. */
-export function whoAnswers(digits: string): Contact {
+export function whoAnswers(digits: string, list: Contact[] = CONTACTS): Contact {
   let h = 0;
   for (const ch of digits) h = (h * 31 + ch.codePointAt(0)!) >>> 0;
-  return CONTACTS[h % CONTACTS.length];
+  return list[h % list.length];
 }

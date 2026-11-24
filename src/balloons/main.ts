@@ -1,6 +1,6 @@
 // Balloon Pop: a tapping game for toddlers. Balloons float up; a voice asks for a colour,
 // a shape or a number of pops. Every tap pops something, and nothing ever goes wrong.
-import { bindVoiceButton, sfx, say, unlock } from '../kids/audio';
+import { bindVoiceButton, sfx, say, stopSpeech, unlock } from '../kids/audio';
 import { burst, CONFETTI, party } from '../kids/fx';
 import { holdToExit, keepAwake, lockGestures } from '../kids/hold';
 import { bindLangButtons, getLang } from '../kids/lang';
@@ -245,7 +245,7 @@ function start(mode: Mode): void {
 function stop(): void {
   running = false;
   for (const b of [...balloons]) remove(b);
-  speechSynthesis?.cancel();
+  stopSpeech();
   keepAwake(false);
   $('game').hidden = true;
   $('party').hidden = true;
@@ -287,7 +287,7 @@ function init(): void {
   });
   lockGestures();
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) speechSynthesis?.cancel();
+    if (document.hidden) stopSpeech();
     else if (running) lastFrame = 0;
   });
 }

@@ -1,14 +1,19 @@
 // Toy Phone: a pretend phone for toddlers. Every key beeps and says its number; the call button
 // rings someone (family, animals, Santa) who chats back. Sometimes the phone rings by itself!
-import { bindVoiceButton, en, es, say, sfx, tone, unlock } from '../kids/audio';
+import { bindVoiceButton, en, es, playBlob, preload, say, sfx, stopSpeech, tone, unlock } from '../kids/audio';
 import { burst } from '../kids/fx';
 import { holdToExit, keepAwake, lockGestures } from '../kids/hold';
 import { bindLangButtons, getLang } from '../kids/lang';
 import { stayPortrait } from '../kids/orient';
 import {
-  CONTACTS, CONTACT_MAP, displayName, DTMF, KEYS, keyWord, lineFor, whoAnswers,
-  type Contact, type Custom, type Key, type LineKind,
-} from './game';
+  addExtra, allContacts, customOf, extraOf, EXTRA_EMOJI, findContact, isExtra, isHidden, nameOf as contactName,
+  removeExtra, setCustom, setHidden, updateExtra, visibleContacts,
+} from './contacts';
+import { DTMF, KEYS, keyWord, lineFor, whoAnswers, type Contact, type Key, type LineKind } from './game';
+import {
+  canRecord, countRecordings, deleteAllFor, deleteRecording, getRecording, loadRecordings, recordingFor,
+  releaseMic, saveRecording, SLOT_INFO, SLOTS, startRecording, stopRecording, type Slot,
+} from './recordings';
 
 const $ = (id: string) => document.getElementById(id)!;
 const rng = Math.random;
@@ -29,14 +34,12 @@ let ringLoop = 0;
 let incoming: Contact | null = null;
 let playing = false;
 
-// ── Grown-up edits: names and photos for family ────────────────
+// ── Contacts, names and photos (see contacts.ts) ──────────────
 
-let custom: Record<string, Custom> = JSON.parse(localStorage.getItem('phone.custom') ?? '{}');
-const saveCustom = () => localStorage.setItem('phone.custom', JSON.stringify(custom));
-const nameOf = (c: Contact) => displayName(c, custom[c.id], getLang());
+const nameOf = (c: Contact) => contactName(c, getLang());
 
 function avatarHtml(c: Contact): string {
-  const photo = custom[c.id]?.photo;
+  const photo = customOf(c.id)?.photo;
   return photo
     ? `<img src="${photo}" alt="">`
     : `<span class="emoji" style="background:${c.color}">${c.emoji}</span>`;
@@ -102,7 +105,7 @@ function pressKey(key: Key, el: HTMLElement): void {
 // ── Contacts ───────────────────────────────────────────────────
 
 function renderContacts(): void {
-  $('contacts').innerHTML = CONTACTS.map(
+  $('contacts').innerHTML = visibleContacts().map(
     (c) => `<button class="contact" data-id="${c.id}"><span class="avatar">${avatarHtml(c)}</span><span class="cname">${nameOf(c)}</span></button>`,
   ).join('');
 }
@@ -116,15 +119,19 @@ function showTab(tab: 'keypad' | 'contacts'): void {
 
 // ── Calls ──────────────────────────────────────────────────────
 
-/** Say a line as the person on the phone, and make their picture "talk" while they do. */
+/**
+ * Say a line as the person on the phone, and make their picture "talk" while they do.
+ * A grown-up's own recording wins; otherwise the natural voice clip or the device voice.
+ */
+let talkId = 0;
 function speak(kind: LineKind): void {
   if (!inCall) return;
-  const line = lineFor(inCall, kind, getLang(), rng, custom[inCall.id]);
-  say([line]);
+  const rec = recordingFor(inCall.id, kind);
+  const done = rec ? playBlob(rec) : say([lineFor(inCall, kind, getLang(), rng, customOf(inCall.id))]);
   const av = $('call-avatar');
+  const my = ++talkId;
   av.classList.add('talking');
-  clearTimeout(Number(av.dataset.t));
-  av.dataset.t = String(window.setTimeout(() => av.classList.remove('talking'), 700 + line.text.length * 65));
+  void done.then(() => my === talkId && av.classList.remove('talking'));
 }
 
 function startCall(c: Contact, ring = true): void {
@@ -232,8 +239,11 @@ function ringIn(): void {
   if (!playing || inCall || incoming || performance.now() - lastIncoming < INCOMING_GAP_MS) return resetIdle();
   lastIncoming = performance.now();
   // Mostly family, sometimes a silly animal.
-  const pool = rng() < 0.7 ? CONTACTS.filter((c) => c.family) : CONTACTS.filter((c) => !c.family);
-  const c = pool[Math.floor(rng() * pool.length)];
+  const everyone = visibleContacts();
+  const family = everyone.filter((c) => c.family);
+  const friends = everyone.filter((c) => !c.family);
+  const pool = (rng() < 0.7 ? family : friends).length ? (rng() < 0.7 ? family : friends) : everyone;
+  const c = pool[Math.floor(rng() * pool.length)] ?? everyone[0];
   incoming = c;
   setAvatar($('in-avatar'), c);
   $('in-name').textContent = nameOf(c);
@@ -267,20 +277,94 @@ function declineIncoming(): void {
   resetIdle();
 }
 
-// ── Grown-up editor ────────────────────────────────────────────
+// ── Grown-up editor: family, friends, photos, recordings ──────
 
-let editing: string | null = null;
+let editing: string | null = null; // whose photo is being chosen
+let recFor: string | null = null; // whose voice is being recorded
+let recording: Slot | null = null;
+
+const esc = (t: string) => t.replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch]!);
 
 function renderEditor(): void {
-  $('family').innerHTML = CONTACTS.filter((c) => c.family)
-    .map(
-      (c) => `<div class="fam-row" data-id="${c.id}">
-        <button class="avatar pick" data-act="photo" aria-label="Choose photo">${avatarHtml(c)}<i>📷</i></button>
-        <input class="fam-name" data-act="name" maxlength="16" placeholder="${c.name.en} / ${c.name.es}" value="${(custom[c.id]?.name ?? '').replace(/"/g, '&quot;')}">
-        ${custom[c.id]?.photo ? '<button class="fam-x" data-act="clear" aria-label="Remove photo">✕</button>' : '<span class="fam-x"></span>'}
-      </div>`,
-    )
+  const fam = allContacts().filter((c) => c.family);
+  $('family').innerHTML = fam
+    .map((c) => {
+      const extra = extraOf(c.id);
+      const hidden = isHidden(c.id);
+      const n = countRecordings(c.id);
+      const name = extra ? extra.name : (customOf(c.id)?.name ?? '');
+      const placeholder = extra ? 'Name (e.g. Auntie Rosa)' : `${c.name.en} / ${c.name.es}`;
+      return `<div class="fam-row ${hidden ? 'off' : ''}" data-id="${c.id}">
+        <div class="fam-top">
+          <button class="avatar pick" data-act="photo" aria-label="Choose photo">${avatarHtml(c)}<i>📷</i></button>
+          <input class="fam-name" maxlength="18" placeholder="${esc(placeholder)}" value="${esc(name)}">
+        </div>
+        <div class="fam-actions">
+          ${customOf(c.id)?.photo ? '<button data-act="clear">✕ Photo</button>' : ''}
+          ${extra ? `<button data-act="face">${esc(extra.emoji)} Face</button><button data-act="gender">${extra.voice === 'male' ? '♂ Male voice' : '♀ Female voice'}</button>` : ''}
+          ${canRecord() ? `<button data-act="record" class="${n ? 'has' : ''}">🎙️ Voice${n ? ` ${n}/${SLOTS.length}` : ''}</button>` : ''}
+          ${extra ? '<button data-act="remove">🗑 Remove</button>' : `<button data-act="hide">${hidden ? '🙈 Hidden' : '👁 Shown'}</button>`}
+        </div>
+      </div>`;
+    })
     .join('');
+  $('friends').innerHTML = allContacts()
+    .filter((c) => !c.family)
+    .map((c) => `<button class="friend ${isHidden(c.id) ? 'off' : ''}" data-id="${c.id}"><span class="avatar">${avatarHtml(c)}</span><span>${esc(c.name.en)}</span></button>`)
+    .join('');
+}
+
+function renderRecorder(): void {
+  const c = recFor ? findContact(recFor) : null;
+  if (!c) return;
+  $('rec-title').textContent = `🎙️ ${nameOf(c)}’s voice`;
+  $('slots').innerHTML = SLOTS.map((slot) => {
+    const has = !!getRecording(c.id, slot);
+    const live = recording === slot;
+    return `<div class="slot-row ${has ? 'has' : ''}" data-slot="${slot}">
+      <div class="slot-text"><b>${SLOT_INFO[slot].label}</b><small>${SLOT_INFO[slot].example}</small></div>
+      <button class="rec ${live ? 'live' : ''}" data-act="rec" ${recording && !live ? 'disabled' : ''}>${live ? '■ Stop' : has ? '● Redo' : '● Record'}</button>
+      <button data-act="play" ${has && !recording ? '' : 'disabled'}>▶</button>
+      <button data-act="del" ${has && !recording ? '' : 'disabled'}>🗑</button>
+    </div>`;
+  }).join('');
+}
+
+function openRecorder(id: string): void {
+  recFor = id;
+  recording = null;
+  renderRecorder();
+  $('editor').hidden = true;
+  $('recorder').hidden = false;
+}
+
+function closeRecorder(): void {
+  releaseMic();
+  stopSpeech();
+  recording = null;
+  recFor = null;
+  $('recorder').hidden = true;
+  renderEditor();
+  $('editor').hidden = false;
+}
+
+async function toggleRecord(slot: Slot): Promise<void> {
+  if (!recFor) return;
+  if (recording === slot) return stopRecording();
+  if (recording) return;
+  const id = recFor;
+  stopSpeech();
+  try {
+    recording = slot;
+    const done = startRecording();
+    renderRecorder();
+    const blob = await done;
+    if (blob.size > 0) await saveRecording(id, slot, blob);
+  } catch {
+    alert('The microphone could not be used. Check that this site is allowed to use it, then try again.');
+  }
+  recording = null;
+  renderRecorder();
 }
 
 /** Shrink a chosen photo to a small square so it fits in local storage. */
@@ -303,6 +387,7 @@ async function photoToDataUrl(file: File): Promise<string> {
 
 function bindEditor(): void {
   $('edit').addEventListener('click', () => {
+    unlock(); // so recordings can be played back here
     renderEditor();
     $('menu').hidden = true;
     $('editor').hidden = false;
@@ -311,25 +396,52 @@ function bindEditor(): void {
     $('editor').hidden = true;
     $('menu').hidden = false;
   });
-  $('family').addEventListener('click', (e) => {
+  $('add-family').addEventListener('click', () => {
+    const x = addExtra();
+    renderEditor();
+    document.querySelector<HTMLInputElement>(`.fam-row[data-id="${x.id}"] .fam-name`)?.focus();
+  });
+  $('family').addEventListener('click', async (e) => {
     const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-act]');
     const id = btn?.closest<HTMLElement>('.fam-row')?.dataset.id;
     if (!btn || !id) return;
-    if (btn.dataset.act === 'photo') {
+    const act = btn.dataset.act;
+    if (act === 'photo') {
       editing = id;
       ($('photo-input') as HTMLInputElement).click();
-    } else if (btn.dataset.act === 'clear') {
-      delete custom[id].photo;
-      saveCustom();
-      renderEditor();
+      return;
     }
+    if (act === 'clear') setCustom(id, { photo: undefined });
+    else if (act === 'hide') {
+      // Keep at least one person in the phone.
+      if (!isHidden(id) && visibleContacts().length <= 1) return;
+      setHidden(id, !isHidden(id));
+    } else if (act === 'face') {
+      const x = extraOf(id)!;
+      updateExtra(id, { emoji: EXTRA_EMOJI[(EXTRA_EMOJI.indexOf(x.emoji) + 1) % EXTRA_EMOJI.length] });
+    } else if (act === 'gender') updateExtra(id, { voice: extraOf(id)!.voice === 'male' ? 'female' : 'male' });
+    else if (act === 'record') return openRecorder(id);
+    else if (act === 'remove') {
+      const who = extraOf(id)?.name || 'this person';
+      if (!confirm(`Remove ${who} and their recordings from the phone?`)) return;
+      await deleteAllFor(id);
+      removeExtra(id);
+    }
+    renderEditor();
   });
   $('family').addEventListener('input', (e) => {
     const input = e.target as HTMLInputElement;
     const id = input.closest<HTMLElement>('.fam-row')?.dataset.id;
     if (!id) return;
-    custom[id] = { ...custom[id], name: input.value };
-    saveCustom();
+    if (isExtra(id)) updateExtra(id, { name: input.value });
+    else setCustom(id, { name: input.value });
+  });
+  $('friends').addEventListener('click', (e) => {
+    const id = (e.target as HTMLElement).closest<HTMLElement>('[data-id]')?.dataset.id;
+    if (!id) return;
+    if (!isHidden(id) && visibleContacts().length <= 1) return;
+    setHidden(id, !isHidden(id));
+    renderEditor();
   });
   $('photo-input').addEventListener('change', async () => {
     const input = $('photo-input') as HTMLInputElement;
@@ -337,13 +449,25 @@ function bindEditor(): void {
     input.value = '';
     if (!file || !editing) return;
     try {
-      custom[editing] = { ...custom[editing], photo: await photoToDataUrl(file) };
-      saveCustom();
+      setCustom(editing, { photo: await photoToDataUrl(file) });
     } catch {
       alert('Sorry, that photo could not be used. Try another one.');
     }
     renderEditor();
   });
+  $('slots').addEventListener('click', async (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-act]');
+    const slot = btn?.closest<HTMLElement>('[data-slot]')?.dataset.slot as Slot | undefined;
+    if (!btn || !slot || !recFor || (btn as HTMLButtonElement).disabled) return;
+    if (btn.dataset.act === 'rec') return void toggleRecord(slot);
+    const rec = getRecording(recFor, slot);
+    if (btn.dataset.act === 'play' && rec) void playBlob(rec);
+    if (btn.dataset.act === 'del') {
+      await deleteRecording(recFor, slot);
+      renderRecorder();
+    }
+  });
+  $('rec-done').addEventListener('click', closeRecorder);
 }
 
 // ── Screens ────────────────────────────────────────────────────
@@ -358,6 +482,7 @@ function start(): void {
   $('game').hidden = false;
   keepAwake(true);
   say(getLang() === 'es' ? [en('Press the numbers!')] : 'Press the numbers!');
+  preload(KEYS.map((k) => keyWord(k, getLang()))); // so every number speaks instantly
   resetIdle();
 }
 
@@ -372,13 +497,14 @@ function stop(): void {
   stopRinging();
   clearIdle();
   $('call').hidden = true;
-  speechSynthesis?.cancel();
+  stopSpeech();
   keepAwake(false);
   $('game').hidden = true;
   $('menu').hidden = false;
 }
 
 function init(): void {
+  void loadRecordings();
   buildKeypad();
   bindVoiceButton($('voice'));
   bindLangButtons($('lang'));
@@ -400,7 +526,8 @@ function init(): void {
   });
   $('dial').addEventListener('pointerdown', () => {
     // No number dialled? Call a surprise friend.
-    startCall(digits ? whoAnswers(digits) : CONTACTS[Math.floor(rng() * CONTACTS.length)]);
+    const everyone = visibleContacts();
+    startCall(digits ? whoAnswers(digits, everyone) : everyone[Math.floor(rng() * everyone.length)]);
   });
   document.querySelector('.tabs')!.addEventListener('pointerdown', (e) => {
     const t = (e.target as HTMLElement).closest<HTMLElement>('[data-tab]');
@@ -411,7 +538,8 @@ function init(): void {
   });
   $('contacts').addEventListener('pointerdown', (e) => {
     const b = (e.target as HTMLElement).closest<HTMLElement>('[data-id]');
-    if (b) startCall(CONTACT_MAP[b.dataset.id!]);
+    const c = b && findContact(b.dataset.id!);
+    if (c) startCall(c);
   });
 
   // In a call: tap the picture to hear more, wave, blow a kiss, hang up.

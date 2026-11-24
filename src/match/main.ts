@@ -1,11 +1,11 @@
 // Match It: a matching game for toddlers. "Same" asks them to find the twin of one picture;
 // "Memory" is pairs with face-down cards, starting tiny. No losing, very little talking.
-import { bindVoiceButton, en, es, say, sfx, unlock, type Part } from '../kids/audio';
+import { bindVoiceButton, say, sfx, stopSpeech, unlock } from '../kids/audio';
 import { bindLangButtons, getLang } from '../kids/lang';
 import { burst, CONFETTI, party } from '../kids/fx';
 import { holdToExit, keepAwake, lockGestures } from '../kids/hold';
 import {
-  flip, gridFor, hideMiss, newMemory, newSame, PAIR_OPTIONS, PICS,
+  flip, gridFor, hideMiss, nameParts as namePartsOf, newMemory, newSame, PAIR_OPTIONS, PICS,
   type Memory, type SameRound, type Theme,
 } from './game';
 
@@ -28,10 +28,7 @@ let idleTimer = 0;
 const stage = () => $('stage');
 const picOf = (i: number) => PICS[theme][i];
 /** The picture's name in the chosen language: "Dog!" or "¡Perro!" */
-function nameParts(i: number): Part[] {
-  const p = picOf(i);
-  return getLang() === 'es' ? [es(`¡${cap(p.es)}!`)] : [en(`${cap(p.name)}!`)];
-}
+const nameParts = (i: number) => namePartsOf(picOf(i), getLang());
 const caption = (i: number) => (getLang() === 'es' ? picOf(i).es : picOf(i).name);
 
 /** The word floats up above a match: "perro". */
@@ -196,7 +193,6 @@ function celebrate(then: () => void): void {
   party($('party'), stage(), then);
 }
 
-const cap = (w: string) => w[0].toUpperCase() + w.slice(1);
 
 function start(m: Mode): void {
   unlock();
@@ -212,7 +208,7 @@ function start(m: Mode): void {
 
 function stop(): void {
   clearTimeout(idleTimer);
-  speechSynthesis?.cancel();
+  stopSpeech();
   keepAwake(false);
   stage().innerHTML = '';
   $('party').hidden = true;

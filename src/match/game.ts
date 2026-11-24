@@ -3,6 +3,8 @@
 //  - Same: one picture at the top; tap the one that matches from 2–4 cards (all face up).
 //  - Memory: classic pairs; a grown-up picks how many (2–8).
 
+import { en, es, type Part } from '../kids/words';
+
 export type Theme = 'animals' | 'vehicles' | 'food';
 
 export interface Pic {
@@ -30,6 +32,13 @@ export const PICS: Record<Theme, Pic[]> = {
 };
 
 export type Rng = () => number;
+
+const cap = (w: string) => w[0].toUpperCase() + w.slice(1);
+
+/** The picture's name as speech: "Dog!" or "¡Perro!" */
+export function nameParts(p: Pic, lang: 'en' | 'es'): Part[] {
+  return lang === 'es' ? [es(`¡${cap(p.es)}!`)] : [en(`${cap(p.name)}!`)];
+}
 
 function shuffle<T>(list: T[], rng: Rng): T[] {
   const a = [...list];

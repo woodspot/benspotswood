@@ -21,16 +21,27 @@
       <h1>Toy <span>Phone</span></h1>
       <button id="play" class="play-btn"><span class="big-phone">📱</span><span class="lbl">Play!</span></button>
       <div class="settings"><div class="lang" id="lang"></div><button id="voice" class="voice-btn"></button></div>
-      <button id="edit" class="edit-btn">✏️ Family names &amp; photos</button>
+      <button id="edit" class="edit-btn">✏️ Contacts, photos &amp; voices</button>
       <p class="tip">Grown-ups: press and hold the 🏠 button to come back here.</p>
     </section>
 
     <section id="editor" class="menu editor" hidden>
-      <h2>Family contacts</h2>
-      <p class="tip">Add a photo and the name your little one uses. Photos stay on this device.</p>
+      <h2>Contacts</h2>
+      <p class="tip">Add photos, names and your own voice. Everything stays on this device.</p>
+      <h3 class="ed-h">Family</h3>
       <div id="family" class="family"></div>
+      <button id="add-family" class="add-btn">➕ Add family member</button>
+      <h3 class="ed-h">Friends <small>tap to show or hide</small></h3>
+      <div id="friends" class="friends"></div>
       <button id="edit-done" class="play-btn small"><span class="lbl">Done</span></button>
       <input id="photo-input" type="file" accept="image/*" hidden />
+    </section>
+
+    <section id="recorder" class="menu editor" hidden>
+      <h2 id="rec-title"></h2>
+      <p class="tip">Record short lines in your own voice (up to 10 seconds each). They play instead of the computer voice. Recordings stay on this device.</p>
+      <div id="slots" class="slot-list"></div>
+      <button id="rec-done" class="play-btn small"><span class="lbl">Done</span></button>
     </section>
 
     <section id="game" hidden>

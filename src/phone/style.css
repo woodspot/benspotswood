@@ -109,3 +109,30 @@
 }
 #game .home { z-index: 8; }
 span.fam-x { background: none; }
+
+/* Editor and recorder: scrollable pages for grown-ups */
+.editor { justify-content: flex-start; overflow-y: auto; gap: 12px; padding-top: calc(24px + env(safe-area-inset-top)); padding-bottom: calc(24px + env(safe-area-inset-bottom)); }
+.ed-h { margin: 8px 0 0; font-size: 1.2rem; align-self: center; text-shadow: 0 1px 0 rgba(0,0,0,.15); }
+.ed-h small { font-size: .75rem; opacity: .8; font-weight: 600; }
+.fam-row { flex-direction: column; align-items: stretch; gap: 8px; }
+.fam-row.off { opacity: .55; }
+.fam-top { display: flex; align-items: center; gap: 12px; }
+.fam-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.fam-actions button, .slot-row button, .add-btn {
+  border: 0; border-radius: 99px; padding: 7px 12px; font-weight: 800; font-size: .85rem; background: rgba(255,255,255,.85); color: #2a4f86;
+}
+.fam-actions button.has { background: #3fbf5a; color: #fff; }
+.add-btn { padding: 12px 20px; font-size: 1rem; }
+.friends { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; width: min(420px, 100%); }
+.friend { border: 0; background: rgba(255,255,255,.2); border-radius: 16px; padding: 8px 4px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-weight: 800; font-size: .8rem; }
+.friend .avatar { --av: 48px; width: 48px; height: 48px; }
+.friend.off { opacity: .4; filter: grayscale(1); }
+.slot-list { display: flex; flex-direction: column; gap: 8px; width: min(440px, 100%); }
+.slot-row { display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,.2); border-radius: 14px; padding: 8px 10px; }
+.slot-row.has { background: rgba(63,191,90,.35); }
+.slot-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.slot-text small { font-size: .75rem; opacity: .85; }
+.slot-row button:disabled { opacity: .35; }
+.slot-row .rec { background: #ec4038; color: #fff; min-width: 82px; }
+.slot-row .rec.live { animation: pulse 1s infinite; }
+@keyframes pulse { 50% { box-shadow: 0 0 0 8px rgba(236,64,56,.25); } }
