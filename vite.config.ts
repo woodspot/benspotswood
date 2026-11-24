@@ -9,6 +9,7 @@ export default defineConfig({
         hub: resolve(import.meta.dirname, 'index.html'),
         skyarmada: resolve(import.meta.dirname, 'skyarmada/index.html'),
         keepfall: resolve(import.meta.dirname, 'keepfall/index.html'),
+        balloons: resolve(import.meta.dirname, 'balloons/index.html'),
       },
     },
   },
