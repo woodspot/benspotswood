@@ -14,6 +14,7 @@ export default defineConfig({
         balloons: resolve(import.meta.dirname, 'balloons/index.html'),
         match: resolve(import.meta.dirname, 'match/index.html'),
         phone: resolve(import.meta.dirname, 'phone/index.html'),
+        barnyard: resolve(import.meta.dirname, 'barnyard/index.html'),
       },
     },
   },

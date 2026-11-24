@@ -7,6 +7,7 @@ import { nameParts as matchNames, PICS } from '../match/game';
 import { CONTACTS, KEYS, keyWord } from '../phone/game';
 import { clipKey, en, es, type Lang, type Part } from '../kids/words';
 import { CAPTAINS } from '../keepfall/captains';
+import { ANIMALS, meetParts, questionParts } from '../barn/game';
 import { BOSSES } from '../keepfall/campaign';
 
 const LANGS: Lang[] = ['en', 'es'];
@@ -60,10 +61,20 @@ function skyArmada(): Part[] {
   ];
 }
 
+function barnyard(): Part[] {
+  const out: Part[] = [en('Who’s hiding on the farm?')];
+  for (const lang of LANGS)
+    for (const a of ANIMALS) {
+      out.push(...meetParts(a, lang));
+      out.push(...questionParts({ kind: 'sound', animal: a.id }, lang), ...questionParts({ kind: 'name', animal: a.id }, lang));
+    }
+  return out;
+}
+
 /** Every phrase, once each. */
 export function allPhrases(): Part[] {
   const seen = new Map<string, Part>();
-  for (const p of [...shared(), ...balloons(), ...match(), ...phone(), ...skyArmada()]) {
+  for (const p of [...shared(), ...balloons(), ...match(), ...phone(), ...skyArmada(), ...barnyard()]) {
     const key = clipKey(p);
     if (p.text && !seen.has(key)) seen.set(key, { text: p.text, lang: p.lang, voice: p.voice ?? 'female' });
   }
