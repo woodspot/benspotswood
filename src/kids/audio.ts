@@ -79,27 +79,20 @@ export const sfx = {
   },
 };
 
-// One voice per language. English instructions; the word being learned can be in Spanish.
+// Voices: the best natural-sounding one the device has, per language and gender (see voices.ts).
 import { en, type Lang, type Part } from './words';
+import { pickVoice, type Gender } from './voices';
 export { en, es, type Lang, type Part } from './words';
-const voices: Record<Lang, SpeechSynthesisVoice | null> = { en: null, es: null };
-const LIKED: Record<Lang, string[]> = {
-  en: ['Samantha', 'Karen', 'Moira', 'Tessa', 'Google UK English Female', 'Microsoft Aria', 'Microsoft Jenny', 'Google US English'],
-  // Latin American Spanish first, then Spain.
-  es: ['Paulina', 'Google español de Estados Unidos', 'Microsoft Sabina', 'Mónica', 'Monica', 'Google español', 'Microsoft Helena'],
-};
 
-function chooseVoices(): void {
-  const all = speechSynthesis.getVoices();
-  for (const lang of ['en', 'es'] as Lang[]) {
-    const mine = all.filter((v) => v.lang.toLowerCase().startsWith(lang));
-    const preferred = lang === 'es' ? mine.filter((v) => /-(MX|US|419)/i.test(v.lang)) : mine;
-    voices[lang] = LIKED[lang].map((n) => mine.find((v) => v.name.includes(n))).find(Boolean) ?? preferred[0] ?? mine[0] ?? null;
-  }
+const cache = new Map<string, SpeechSynthesisVoice | null>();
+function voiceFor(lang: Lang, gender: Gender): SpeechSynthesisVoice | null {
+  const key = `${lang}-${gender}`;
+  if (!cache.has(key)) cache.set(key, pickVoice(speechSynthesis.getVoices(), lang, gender));
+  return cache.get(key) ?? null;
 }
 if ('speechSynthesis' in window) {
-  chooseVoices();
-  speechSynthesis.addEventListener?.('voiceschanged', chooseVoices);
+  // Voices load late on some devices; start again when they arrive.
+  speechSynthesis.addEventListener?.('voiceschanged', () => cache.clear());
 }
 
 let voiceOn = (localStorage.getItem('kids.voice') ?? localStorage.getItem('balloons.voice')) !== 'off';
@@ -118,12 +111,13 @@ export function say(line: string | Part[]): void {
   speechSynthesis.cancel();
   for (const p of parts) {
     const u = new SpeechSynthesisUtterance(p.text);
-    u.lang = p.lang === 'es' ? (voices.es?.lang ?? 'es-MX') : (voices.en?.lang ?? 'en-US');
-    const v = voices[p.lang];
+    const v = voiceFor(p.lang, p.voice ?? 'female');
+    u.lang = v?.lang ?? (p.lang === 'es' ? 'es-MX' : 'en-US');
     if (v) u.voice = v;
-    u.rate = p.lang === 'es' ? 0.85 : 0.95; // learning words a touch slower
+    // Learning words a touch slower. Pitch stays close to 1: big pitch shifts sound robotic.
+    u.rate = p.rate ?? (p.lang === 'es' ? 0.88 : 0.95);
     u.pitch = p.pitch ?? 1;
-    u.volume = 0.8;
+    u.volume = 0.85;
     speechSynthesis.speak(u);
   }
 }

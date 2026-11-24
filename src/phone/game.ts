@@ -31,7 +31,9 @@ export interface Contact {
   emoji: string;
   color: string; // avatar background
   family: boolean; // a grown-up can rename these and add a photo
-  pitch: number; // voice: 1 normal, lower is deeper
+  pitch: number; // voice: 1 normal, lower is deeper (kept gentle: big shifts sound robotic)
+  voice: 'female' | 'male';
+  rate: number;
   name: { en: string; es: string };
   lines: Record<LineKind, { en: string[]; es: string[] }>;
 }
@@ -58,26 +60,26 @@ const animalLines = (en1: string, es1: string) => ({
   bye: { en: [`${en1} Bye bye!`], es: [`${es1} ¡Adiós!`] },
 });
 
-const fam = (id: string, emoji: string, color: string, name: { en: string; es: string }, pitch: number): Contact => ({
-  id, emoji, color, family: true, pitch, name, lines: familyLines(name),
+const fam = (id: string, emoji: string, color: string, name: { en: string; es: string }, voice: 'female' | 'male', pitch: number, rate: number): Contact => ({
+  id, emoji, color, family: true, voice, pitch, rate, name, lines: familyLines(name),
 });
-const animal = (id: string, emoji: string, color: string, name: { en: string; es: string }, sound: [string, string], pitch = 1.4): Contact => ({
-  id, emoji, color, family: false, pitch, name, lines: animalLines(...sound),
+const animal = (id: string, emoji: string, color: string, name: { en: string; es: string }, sound: [string, string], voice: 'female' | 'male' = 'female', pitch = 1.2): Contact => ({
+  id, emoji, color, family: false, voice, pitch, rate: 1, name, lines: animalLines(...sound),
 });
 
 export const CONTACTS: Contact[] = [
-  fam('grandma', '👵', '#f6a5c0', { en: 'Grandma', es: 'Abuela' }, 1.15),
-  fam('grandpa', '👴', '#9cc7f2', { en: 'Grandpa', es: 'Abuelo' }, 0.75),
-  fam('mommy', '👩', '#f7c873', { en: 'Mommy', es: 'Mamá' }, 1.2),
-  fam('daddy', '👨', '#8fd6a8', { en: 'Daddy', es: 'Papá' }, 0.85),
-  animal('dog', '🐶', '#e8c39e', { en: 'Doggy', es: 'Perrito' }, ['Woof woof!', '¡Guau guau!']),
+  fam('grandma', '👵', '#f6a5c0', { en: 'Grandma', es: 'Abuela' }, 'female', 1, 0.88),
+  fam('grandpa', '👴', '#9cc7f2', { en: 'Grandpa', es: 'Abuelo' }, 'male', 0.92, 0.85),
+  fam('mommy', '👩', '#f7c873', { en: 'Mommy', es: 'Mamá' }, 'female', 1.05, 0.95),
+  fam('daddy', '👨', '#8fd6a8', { en: 'Daddy', es: 'Papá' }, 'male', 1, 0.95),
+  animal('dog', '🐶', '#e8c39e', { en: 'Doggy', es: 'Perrito' }, ['Woof woof!', '¡Guau guau!'], 'male', 1.15),
   animal('cat', '🐱', '#ffd9a8', { en: 'Kitty', es: 'Gatito' }, ['Meow!', '¡Miau!']),
-  animal('cow', '🐮', '#d9e6f2', { en: 'Cow', es: 'Vaca' }, ['Moo!', '¡Muu!'], 0.7),
+  animal('cow', '🐮', '#d9e6f2', { en: 'Cow', es: 'Vaca' }, ['Moo!', '¡Muu!'], 'male', 0.85),
   animal('duck', '🦆', '#bfe3c0', { en: 'Duck', es: 'Pato' }, ['Quack quack!', '¡Cuac cuac!']),
-  animal('lion', '🦁', '#f3c96b', { en: 'Lion', es: 'León' }, ['Roar!', '¡Grrr!'], 0.6),
+  animal('lion', '🦁', '#f3c96b', { en: 'Lion', es: 'León' }, ['Roar!', '¡Grrr!'], 'male', 0.8),
   animal('pig', '🐷', '#f9c3d3', { en: 'Piggy', es: 'Cerdito' }, ['Oink oink!', '¡Oinc oinc!']),
   {
-    id: 'santa', emoji: '🎅', color: '#f28b82', family: false, pitch: 0.6, name: { en: 'Santa', es: 'Santa' },
+    id: 'santa', emoji: '🎅', color: '#f28b82', family: false, voice: 'male', pitch: 0.85, rate: 0.85, name: { en: 'Santa', es: 'Santa' },
     lines: {
       hello: { en: ['Ho ho ho! Hello there!'], es: ['¡Jo jo jo! ¡Hola!'] },
       more: { en: ['Have you been good? Ho ho ho!', 'My reindeer say hello!'], es: ['¿Te portaste bien? ¡Jo jo jo!', '¡Mis renos te saludan!'] },
@@ -107,7 +109,7 @@ export function lineFor(c: Contact, kind: LineKind, lang: Lang, rng: Rng, custom
   const options = c.lines[kind][lang];
   let text = options[Math.floor(rng() * options.length)];
   if (c.family && custom?.name?.trim()) text = text.replace(c.name[lang], custom.name.trim());
-  return { ...(lang === 'es' ? es(text) : en(text)), pitch: c.pitch };
+  return { ...(lang === 'es' ? es(text) : en(text)), voice: c.voice, pitch: c.pitch, rate: c.rate };
 }
 
 /** Dialling a number calls someone; the same number always reaches the same friend. */

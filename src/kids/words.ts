@@ -7,6 +7,8 @@ export interface Part {
   text: string;
   lang: Lang;
   pitch?: number; // characters can sound higher or lower (1 = normal)
+  rate?: number; // speed (1 = normal)
+  voice?: 'female' | 'male'; // which kind of voice to use (default female)
 }
 export const en = (text: string): Part => ({ text, lang: 'en' });
 export const es = (text: string): Part => ({ text, lang: 'es' });

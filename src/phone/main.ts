@@ -11,8 +11,8 @@ import {
 
 const $ = (id: string) => document.getElementById(id)!;
 const rng = Math.random;
-const INCOMING_AFTER_MS = 35000; // idle time before the phone rings by itself
-const INCOMING_GAP_MS = 90000; // at most this often
+const INCOMING_AFTER_MS = 7000; // idle time before the phone rings by itself
+const INCOMING_GAP_MS = 12000; // breathing room between surprise calls
 const MAX_DIGITS = 10;
 
 let digits = '';
