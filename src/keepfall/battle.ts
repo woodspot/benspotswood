@@ -1,15 +1,17 @@
 // The battle screen: renders a game, takes the human's moves, runs the AI, reports the result.
 import { chooseAction, type Difficulty } from './ai';
 import { building, card, choiceOf, describeCard, describeOp, describeOption, GEN_LABEL, RES_LABEL } from './cards';
-import { canAfford, costOf, modsFor, newGame, previewCard, step } from './engine';
+import { canAfford, costOf, modsFor, newGame, previewCard, step, type CaptainSetup } from './engine';
+import { CAPTAIN_MAP } from './captains';
+import { hasClips, say, unlock as unlockVoice, type Part } from '../kids/audio';
 import { EVENT_MAP, FACTION_MAP, type FactionId } from './factions';
 import { isMuted, setMuted, sfx, unlock } from './sound';
 import { DEFAULT_RULES, RESOURCES } from './types';
-import type { Action, GameState, Op, Player } from './types';
+import type { Action, GameState, Op, Player, Rules } from './types';
 import { buildShip, setPlates } from './ship';
 import { $, cardFace, esc, ICON, relicChip, toast } from './ui';
 
-const rules = DEFAULT_RULES;
+let rules: Rules = DEFAULT_RULES; // per battle: some campaign fights change the weather more often
 const HUMAN = 0 as const;
 const AI = 1 as const;
 const AI_DELAY = 900;
@@ -21,6 +23,14 @@ export interface BattleConfig {
   decks?: [string[], string[]];
   relics?: [string[], string[]];
   intro?: string; // extra line for the opening toast
+  captain?: CaptainSetup; // the human's captain (campaigns)
+  eventEvery?: number; // weather changes this often (default 6 turns)
+  taunt?: Part[]; // spoken at the start (natural voice clips only)
+}
+
+/** Voice lines play only when a natural voice clip exists (no robotic device speech in battles). */
+export function voice(parts: Part[]): void {
+  if (!isMuted() && hasClips(parts)) void say(parts);
 }
 
 let state: GameState = newGame({ rules });
@@ -157,6 +167,7 @@ function renderHands(): void {
   $('opp-hand').innerHTML = state.players[AI].hand.map(() => '<div class="card-back"></div>').join('');
   const me = state.players[HUMAN];
   $('deck-count').textContent = `Deck ${me.deck.length} · Discard ${me.discard.length}`;
+  renderPower();
 
   const hint = $('hint');
   if (state.winner !== null) hint.textContent = '';
@@ -165,6 +176,28 @@ function renderHands(): void {
       ? 'Your turn: tap a card to see what it does'
       : 'Your turn: click a card to play it. Hover to preview. Too expensive? Clicking discards it.';
   else hint.textContent = `${state.players[AI].name} is thinking…`;
+}
+
+/** The captain's power button: once per battle (twice at level 5), doesn't end your turn. */
+function renderPower(): void {
+  const btn = $('power-btn') as HTMLButtonElement;
+  const cap = state.players[HUMAN].captain;
+  const def = cap && CAPTAIN_MAP[cap.id];
+  btn.hidden = !def;
+  if (!def || !cap) return;
+  btn.disabled = !myTurn() || cap.uses <= 0;
+  btn.innerHTML = `<span class="pw-icon">${def.icon}</span><span class="pw-name">${esc(def.power.name)}</span><span class="pw-uses">${cap.uses > 0 ? '×' + cap.uses : 'used'}</span>`;
+  btn.dataset.info = `${def.icon} ${def.name}: ${def.power.name}: ${def.power.text(cap.level)}. Doesn't use up your turn.`;
+}
+
+function usePower(): void {
+  const cap = state.players[HUMAN].captain;
+  if (!myTurn() || !cap || cap.uses <= 0) return;
+  const def = CAPTAIN_MAP[cap.id];
+  sfx.power();
+  voice([{ text: def.shout, lang: 'en', voice: def.voice }]);
+  toast(`<div class="toast-icon">${def.icon}</div><b>${esc(def.power.name)}!</b><span>${esc(def.power.text(cap.level))}</span>`);
+  act({ kind: 'power' });
 }
 
 function onCardClick(index: number, el: HTMLElement): void {
@@ -381,6 +414,10 @@ function floatAt(target: Element | null, text: string, cls: string): void {
 function showDiffs(before: GameState, after: GameState): void {
   let hit = false;
   let built = false;
+  let towerLoss = 0;
+  let armorHit = false;
+  let warded = false;
+  let burned = false;
   ([0, 1] as const).forEach((i) => {
     const a = before.players[i];
     const b = after.players[i];
@@ -408,6 +445,10 @@ function showDiffs(before: GameState, after: GameState): void {
     if (lost.length) hit = true;
     const rub = (p: Player) => [...p.deck, ...p.hand, ...p.discard].filter((x) => x === 'rubble').length;
     if (rub(b) > rub(a)) floatAt(panel.querySelector('.p-head'), `+${rub(b) - rub(a)} 🗑️ Junk`, 'down');
+    towerLoss = Math.max(towerLoss, a.tower - b.tower);
+    if (b.wall < a.wall) armorHit = true;
+    if (b.ward > a.ward) warded = true;
+    if (b.burn > a.burn) burned = true;
     if (b.tower < a.tower || b.wall < a.wall) {
       hit = true;
       ship.classList.remove('hit');
@@ -418,12 +459,17 @@ function showDiffs(before: GameState, after: GameState): void {
   });
 
   const la = after.lastAction;
-  if (la?.kind === 'discard') sfx.discard();
+  const newCard = after.log.slice(before.log.length).some((l) => l.kind === 'play' || l.kind === 'discard');
+  if (newCard && la?.kind === 'discard') sfx.discard();
   else if (la) {
-    sfx.card();
-    if (card(la.cardId).type === 'mana') sfx.magic();
-    if (hit) setTimeout(sfx.hit, 120);
+    if (newCard) sfx.card();
+    if (newCard && card(la.cardId).type === 'mana') sfx.magic();
+    // Cannon fire when Altitude drops (a big boom for heavy hits), clanging plates when only Armor takes it.
+    if (towerLoss > 0) setTimeout(() => sfx.hit(towerLoss >= 10), 120);
+    else if (armorHit) setTimeout(sfx.armor, 120);
+    else if (warded) setTimeout(sfx.ward, 80);
     else if (built) setTimeout(sfx.build, 80);
+    if (burned) setTimeout(sfx.burn, 300);
   }
   if (hit && la?.player === AI && !isMuted()) navigator.vibrate?.(40);
 
@@ -488,7 +534,9 @@ function maybeAiTurn(): void {
 export function startBattle(cfg: BattleConfig, done: (s: GameState) => void): void {
   generation++;
   unlock();
+  unlockVoice();
   config = cfg;
+  rules = cfg.eventEvery ? { ...DEFAULT_RULES, eventEvery: cfg.eventEvery } : DEFAULT_RULES;
   onEnd = done;
   selected = null;
   lastTurnOwner = null;
@@ -498,6 +546,7 @@ export function startBattle(cfg: BattleConfig, done: (s: GameState) => void): vo
     decks: cfg.decks,
     relics: cfg.relics,
     rules,
+    captains: [cfg.captain, undefined],
   });
   $('goal-label').textContent = `⚓ High harbor · ${rules.winTower}`;
   busy = false;
@@ -507,6 +556,7 @@ export function startBattle(cfg: BattleConfig, done: (s: GameState) => void): vo
     `<div class="toast-icon">${f.icon}</div><b>vs ${esc(cfg.enemyName)}</b><span>${f.name}: ${f.perks.join(' · ')}</span>` +
       (cfg.intro ? `<span>${esc(cfg.intro)}</span>` : ''),
   );
+  if (cfg.taunt) voice(cfg.taunt);
   maybeAiTurn();
 }
 
@@ -525,6 +575,7 @@ export function getState(): GameState {
 export function initBattleChrome(): void {
   // Dev builds only: poke at the live battle from the console.
   if (import.meta.env.DEV) Object.assign(window, { keepfall: { state: () => state, render } });
+  $('power-btn').addEventListener('click', usePower);
   $('btn-log').addEventListener('click', () => {
     const log = $('log');
     log.hidden = !log.hidden;

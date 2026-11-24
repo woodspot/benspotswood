@@ -6,13 +6,16 @@ const PLATES = [38, 52, 66, 80, 94];
 const SVG = `
 <svg class="ship-svg" viewBox="0 -14 140 124" aria-hidden="true">
   <line x1="72" y1="8" x2="72" y2="-12" stroke="#ddd" stroke-width="1.5"/>
-  <path d="M72 -12 L90 -8 L72 -3 Z" fill="currentColor"/>
+  <path class="flag-cloth" d="M72 -12 L90 -8 L72 -3 Z" fill="currentColor"/>
   <g class="lines" stroke="#2b2b33" stroke-width="1.2">
     <line x1="42" y1="54" x2="46" y2="72"/><line x1="72" y1="60" x2="72" y2="72"/><line x1="102" y1="54" x2="98" y2="72"/>
   </g>
   <path d="M20 34 L4 16 L13 34 L4 52 Z" fill="currentColor"/>
   <path d="M20 34 L4 16 L13 34 L4 52 Z" fill="rgba(0,0,0,.25)"/>
   <ellipse cx="72" cy="34" rx="56" ry="26" fill="currentColor"/>
+  <clipPath id="env-clip"><ellipse cx="72" cy="34" rx="56" ry="26"/></clipPath>
+  <g class="pat pat-stripes" clip-path="url(#env-clip)" fill="rgba(255,255,255,.55)">${[24, 44, 64, 84, 104, 124].map((x) => `<rect x="${x}" y="0" width="9" height="70"/>`).join('')}</g>
+  <g class="pat pat-dots" clip-path="url(#env-clip)" fill="rgba(255,255,255,.6)">${[[34, 26], [56, 18], [80, 24], [104, 20], [44, 42], [70, 40], [94, 44], [118, 34]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="4.5"/>`).join('')}</g>
   <path d="M16 34 A56 26 0 0 0 128 34 Q72 48 16 34 Z" fill="rgba(0,0,0,.22)"/>
   <ellipse cx="62" cy="22" rx="32" ry="7" fill="rgba(255,255,255,.22)"/>
   <path d="M18 32 Q72 18 126 32" stroke="rgba(255,255,255,.28)" stroke-width="2.5" fill="none"/>

@@ -1,4 +1,5 @@
-import type { BuildingDef, CardDef, Condition, Op, Rarity, Resource } from './types';
+import type { BuildingDef, CardDef, Condition, Enchant, Op, Rarity, Resource } from './types';
+import { EVENT_MAP } from './factions';
 
 const dmg = (amt: number): Op => ({ op: 'damage', amt });
 const tower = (amt: number, target: 'self' | 'enemy' = 'self'): Op => ({ op: 'tower', amt, target });
@@ -14,6 +15,7 @@ const ward = (amt: number): Op => ({ op: 'ward', amt });
 const curse = (count: number): Op => ({ op: 'curse', count });
 const when = (cond: Condition, ...then: Op[]): Op => ({ op: 'if', cond, then });
 const choose = (...options: Op[][]): Op => ({ op: 'choose', options });
+const weather = (event: string): Op => ({ op: 'weather', event });
 
 export const CARDS: CardDef[] = [
   // ── Iron (stone): shipwrights ──────────────────────────────────────────
@@ -95,7 +97,44 @@ export const CARDS: CardDef[] = [
   },
 ];
 
+CARDS.push(
+  // ── Lightning pack (Shipyard) ─────────────────────────────────
+  { id: 'chainbolt', name: 'Chain Lightning', type: 'mana', cost: 6, copies: 1, ops: [tower(-3, 'enemy'), when('combo', tower(-4, 'enemy'))], flavor: 'It never strikes just once.' },
+  { id: 'thunderclap', name: 'Thunderclap', type: 'mana', cost: 4, copies: 1, ops: [wall(-4, 'enemy'), again] },
+  { id: 'stormcall', name: 'Call the Storm', type: 'mana', cost: 6, copies: 1, ops: [weather('eclipse'), tower(-3, 'enemy')] },
+  { id: 'balllightning', name: 'Ball Lightning', type: 'mana', cost: 9, copies: 1, ops: [tower(-7, 'enemy'), burn(2, 2)] },
+  { id: 'staticfield', name: 'Static Field', type: 'mana', cost: 5, copies: 1, ops: [ward(6), when('behind', tower(-3, 'enemy'))] },
+  { id: 'b-rod', name: 'Lightning Rod', type: 'mana', cost: 10, copies: 1, ops: [build('rod')] },
+  // ── Clockwork pack (Shipyard) ─────────────────────────────────
+  { id: 'gears', name: 'Gearwork', type: 'stone', cost: 2, copies: 1, ops: [res('stone', 3), again] },
+  { id: 'automaton', name: 'Automaton Crew', type: 'stone', cost: 5, copies: 2, ops: [choose([wall(7)], [res('mana', 3), res('steel', 3)])] },
+  { id: 'clockbomb', name: 'Clockwork Bomb', type: 'stone', cost: 7, copies: 1, ops: [wall(-6, 'enemy'), gen('stone', -1, 'enemy')] },
+  { id: 'overclock', name: 'Overclock', type: 'stone', cost: 8, copies: 1, ops: [gen('stone', 1), gen('steel', 1)] },
+  { id: 'b-forge', name: 'Clockwork Forge', type: 'stone', cost: 8, copies: 1, ops: [build('forge')] },
+  { id: 'b-winch', name: 'Steam Winch', type: 'stone', cost: 11, copies: 1, ops: [build('winch')] },
+  // ── Weather pack (Shipyard) ───────────────────────────────────
+  { id: 'tailwind', name: 'Tailwind', type: 'mana', cost: 3, copies: 2, ops: [weather('harvest'), tower(2)], flavor: 'Fill the sails!' },
+  { id: 'squall', name: 'Squall', type: 'steel', cost: 3, copies: 2, ops: [weather('siege'), dmg(3)] },
+  { id: 'fogbank', name: 'Fog Bank', type: 'stone', cost: 4, copies: 2, ops: [weather('fog'), wall(4)] },
+  { id: 'deadcalm', name: 'Becalm', type: 'mana', cost: 6, copies: 1, ops: [weather('drought'), steal('mana', 5)] },
+  { id: 'eye', name: 'Eye of the Storm', type: 'mana', cost: 8, copies: 1, ops: [weather('storm'), ward(8), tower(3)] },
+  { id: 'b-vane', name: 'Weather Vane', type: 'mana', cost: 7, copies: 1, ops: [build('vane')] },
+  // ── Legendary cards: only from defeated bosses ────────────────
+  { id: 'leg-heart', name: 'Leviathan’s Heart', type: 'stone', cost: 10, copies: 0, legendary: true, ops: [tower(10), wall(10), ward(5)], flavor: 'Still beating, somehow.' },
+  { id: 'leg-crown', name: 'Crown of Thunder', type: 'mana', cost: 12, copies: 0, legendary: true, ops: [tower(-12, 'enemy'), weather('eclipse')], flavor: 'The Thunder Queen’s own.' },
+  { id: 'leg-ransom', name: 'King’s Ransom', type: 'steel', cost: 8, copies: 0, legendary: true, ops: [steal('stone', 8), steal('mana', 8), steal('steel', 8)], flavor: 'Finders keepers.' },
+  { id: 'leg-armada', name: 'Call the Armada', type: 'steel', cost: 14, copies: 0, legendary: true, ops: [dmg(14), again], flavor: 'Every ship you ever met, all at once.' },
+  { id: 'leg-phoenix', name: 'Phoenix Envelope', type: 'mana', cost: 9, copies: 0, legendary: true, ops: [tower(7), when('behind', tower(8))], flavor: 'Rises from the ashes.' },
+  { id: 'b-anchor', name: 'Sky Anchor', type: 'stone', cost: 12, copies: 0, legendary: true, ops: [build('anchor')], flavor: 'Nothing moves this ship.' },
+);
+
 export const HEX_CARDS = ['hexfire', 'plague', 'firearrows', 'rubblecart', 'marauders'];
+export const CARD_PACKS: Record<string, string[]> = {
+  lightning: ['chainbolt', 'thunderclap', 'stormcall', 'balllightning', 'staticfield', 'b-rod'],
+  clockwork: ['gears', 'automaton', 'clockbomb', 'overclock', 'b-forge', 'b-winch'],
+  weather: ['tailwind', 'squall', 'fogbank', 'deadcalm', 'eye', 'b-vane'],
+};
+export const LEGENDARY_CARDS = ['leg-heart', 'leg-crown', 'leg-ransom', 'leg-armada', 'leg-phoenix', 'b-anchor'];
 
 export const BUILDINGS: BuildingDef[] = [
   { id: 'lodge', name: 'Repair Crew', icon: '🔧', ops: [wall(2)], worth: 14 },
@@ -105,6 +144,11 @@ export const BUILDINGS: BuildingDef[] = [
   { id: 'catapult', name: 'Mortar Deck', icon: '☄️', ops: [dmg(2)], worth: 18 },
   { id: 'ballista', name: 'Gun Turret', icon: '🎯', ops: [dmg(3), wall(1)], worth: 26 },
   { id: 'obelisk', name: 'Aether Lens', icon: '🔮', ops: [ward(2)], worth: 15 },
+  { id: 'rod', name: 'Lightning Rod', icon: '⚡', ops: [tower(-1, 'enemy'), ward(1)], worth: 24 },
+  { id: 'forge', name: 'Clockwork Forge', icon: '⚙️', ops: [res('stone', 1), wall(1)], worth: 17 },
+  { id: 'winch', name: 'Steam Winch', icon: '🏗️', ops: [tower(2)], worth: 28 },
+  { id: 'vane', name: 'Weather Vane', icon: '🧭', ops: [tower(1), res('stone', 1)], worth: 19 },
+  { id: 'anchor', name: 'Sky Anchor', icon: '⚓', ops: [tower(2), wall(2), ward(1)], worth: 36 },
   { id: 'den', name: "Smugglers' Hold", icon: '🗝️', ops: [steal('stone', 1), steal('mana', 1), steal('steel', 1)], worth: 22 },
 ];
 
@@ -152,24 +196,53 @@ const scalable = (ops: Op[]): boolean =>
 const upgradeCache: Record<string, CardDef> = {};
 const upgradeBuildingCache: Record<string, BuildingDef> = {};
 
+// ── Card ids: "archers" plain, "archers+" upgraded, "archers~g" enchanted, "archers+~g" both ──
+
+export interface CardId {
+  base: string;
+  up: boolean;
+  ench?: Enchant;
+}
+
+export function parseId(id: string): CardId {
+  const m = /^(.+?)(\+)?(?:~([gtb]))?$/.exec(id)!;
+  return { base: m[1], up: !!m[2], ench: m[3] as Enchant | undefined };
+}
+
+export const makeId = (c: CardId) => `${c.base}${c.up ? '+' : ''}${c.ench ? `~${c.ench}` : ''}`;
+export const upgradeId = (id: string) => makeId({ ...parseId(id), up: true });
+export const enchantId = (id: string, ench: Enchant) => makeId({ ...parseId(id), ench });
+
+export const ENCHANTS: Record<Enchant, { name: string; icon: string; text: string }> = {
+  g: { name: 'Gilded', icon: '✨', text: 'Costs 1 less.' },
+  t: { name: 'Twin', icon: '♊', text: 'Adds “Play again”.' },
+  b: { name: 'Burning', icon: '🔥', text: 'Adds Burn 2 for 2 turns.' },
+};
+
 export function card(id: string): CardDef {
-  if (id.endsWith('+')) {
-    if (upgradeCache[id]) return upgradeCache[id];
-    const base = card(id.slice(0, -1));
-    const up: CardDef = {
-      ...base,
-      id,
+  if (upgradeCache[id]) return upgradeCache[id];
+  const { base: baseId, up, ench } = parseId(id);
+  const base = BASE_CARDS[baseId];
+  if (!base) throw new Error(`Unknown card: ${id}`);
+  if (!up && !ench) return base;
+  let c: CardDef = { ...base, id };
+  if (up) {
+    c = {
+      ...c,
       name: base.name + '+',
       upgraded: true,
       ops: upgradeOps(base.ops),
       // Cards with nothing to scale (generators) get cheaper instead.
       cost: scalable(base.ops) ? base.cost : Math.max(1, base.cost - 2),
     };
-    return (upgradeCache[id] = up);
   }
-  const c = BASE_CARDS[id];
-  if (!c) throw new Error(`Unknown card: ${id}`);
-  return c;
+  if (ench) {
+    c = { ...c, enchant: ench, name: `${ENCHANTS[ench].name} ${c.name}` };
+    if (ench === 'g') c.cost = Math.max(0, c.cost - 1);
+    if (ench === 't' && !c.ops.some((o) => o.op === 'again')) c.ops = [...c.ops, again];
+    if (ench === 'b') c.ops = [...c.ops, burn(2, 2)];
+  }
+  return (upgradeCache[id] = c);
 }
 
 export function building(id: string): BuildingDef {
@@ -184,10 +257,12 @@ export function building(id: string): BuildingDef {
   return b;
 }
 
-export const canUpgrade = (id: string) => !id.endsWith('+') && !card(id).curse;
+export const canUpgrade = (id: string) => !parseId(id).up && !card(id).curse;
+export const canEnchant = (id: string) => !parseId(id).ench && !card(id).curse;
 
 export function rarity(id: string): Rarity {
-  const c = card(id.replace(/\+$/, ''));
+  const c = BASE_CARDS[parseId(id).base];
+  if (c.legendary) return 'legendary';
   return c.cost <= 4 ? 'common' : c.cost <= 9 ? 'uncommon' : 'rare';
 }
 
@@ -198,7 +273,7 @@ export function setLockedCards(ids: string[]): void {
 }
 /** Cards that can appear in decks, drafts and rewards right now. */
 export function availableCards(): CardDef[] {
-  return CARDS.filter((c) => !c.curse && !lockedCards.has(c.id));
+  return CARDS.filter((c) => !c.curse && !c.legendary && !lockedCards.has(c.id));
 }
 
 /** Every available card, with its copy count: used for Quick Battle. */
@@ -251,6 +326,12 @@ export function describeOp(o: Op): string {
       return `${COND_LABEL[o.cond]}: ${o.then.map(describeOp).join(', ')}`;
     case 'choose':
       return `Choose: ${o.options.map(describeOption).join(' or ')}`;
+    case 'redraw':
+      return 'Draw a whole new hand';
+    case 'weather': {
+      const e = EVENT_MAP[o.event];
+      return e ? `Weather: ${e.icon} ${e.name}` : 'Change the weather';
+    }
   }
 }
 

@@ -30,6 +30,12 @@ const VOICES = {
   santa: { voice: 'onyx', style: `Santa Claus: big, deep, booming and jolly, with hearty laughs. ${TODDLER}` },
   critter: { voice: 'fable', style: `A silly, squeaky little cartoon animal, very playful and expressive. ${TODDLER}` },
   bigcritter: { voice: 'ash', style: `A big, goofy, friendly cartoon animal with a deeper silly voice. ${TODDLER}` },
+  // Sky Armada (for grown-ups): adventure voices, not toddler voices.
+  heroF: { voice: 'sage', style: 'A bold, confident airship captain shouting an order in the middle of a sky battle. Energetic and heroic.' },
+  heroM: { voice: 'ballad', style: 'A brave, gruff airship captain shouting an order in the middle of a sky battle. Energetic and heroic.' },
+  villain: { voice: 'onyx', style: 'A menacing, theatrical villain: deep, slow and full of contempt, like a boss in an adventure film.' },
+  queen: { voice: 'shimmer', style: 'An imperious storm queen: cold, regal and dramatic, with crackling menace.' },
+  narrator: { voice: 'fable', style: 'A warm, dramatic storyteller announcing a moment in an epic sky adventure.' },
 };
 const LANG_STYLE = {
   en: 'Speak American English.',

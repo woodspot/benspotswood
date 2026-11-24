@@ -26,12 +26,14 @@ export type Op =
   | { op: 'ward'; amt: number } // absorbs enemy harm to your Tower and Wall
   | { op: 'curse'; count: number } // shuffle Rubble into the enemy deck
   | { op: 'if'; cond: Condition; then: Op[] }
-  | { op: 'choose'; options: Op[][] }; // the player picks one option when playing
+  | { op: 'choose'; options: Op[][] } // the player picks one option when playing
+  | { op: 'redraw' } // discard your hand and draw a new one
+  | { op: 'weather'; event: string }; // change the shared weather (event) right now
 
 /** foeNoWall: enemy Wall is 0 · behind: your Tower is lower · combo: you already played a card this turn */
 export type Condition = 'foeNoWall' | 'behind' | 'combo';
 
-export type Rarity = 'common' | 'uncommon' | 'rare';
+export type Rarity = 'common' | 'uncommon' | 'rare' | 'legendary';
 
 export interface CardDef {
   id: string;
@@ -45,7 +47,12 @@ export interface CardDef {
   text?: string[]; // rules text override (for cards with no ops)
   exhaust?: boolean; // leaves the deck when played instead of going to the discard pile
   curse?: boolean; // junk card: never offered in drafts or rewards
+  legendary?: boolean; // boss reward only: never in drafts, shops or normal rewards
+  enchant?: Enchant; // Dock enchantment (built from the card id, e.g. "archers~g")
 }
+
+/** Dock enchantments: g = Gilded (costs 1 less), t = Twin (play again), b = Burning (adds a Burn). */
+export type Enchant = 'g' | 't' | 'b';
 
 /** A building sits in a slot and runs its ops at the start of each of its owner's turns. */
 export interface BuildingDef {
@@ -82,11 +89,13 @@ export interface Player {
   ward: number;
   burn: number; // Tower lost at the start of each turn…
   burnTurns: number; // …for this many more turns
+  captain?: { id: string; level: number; uses: number }; // the human's captain (campaigns)
 }
 
 export type Action =
   | { kind: 'play'; index: number; choice?: number }
-  | { kind: 'discard'; index: number };
+  | { kind: 'discard'; index: number }
+  | { kind: 'power' }; // use your captain's power (doesn't end the turn)
 
 export interface LogEntry {
   player: 0 | 1;

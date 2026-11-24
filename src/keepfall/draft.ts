@@ -16,7 +16,7 @@ export function rand(h: RngHolder): number {
 export const DRAFT_PICKS = 12;
 
 function pools(): Record<Rarity, string[]> {
-  const pool: Record<Rarity, string[]> = { common: [], uncommon: [], rare: [] };
+  const pool: Record<Rarity, string[]> = { common: [], uncommon: [], rare: [], legendary: [] };
   for (const c of availableCards()) pool[rarity(c.id)].push(c.id);
   return pool;
 }

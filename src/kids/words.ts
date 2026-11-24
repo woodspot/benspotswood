@@ -15,11 +15,14 @@ export interface Part {
  * Who is speaking. 'female'/'male' are the game's narrators; the rest are phone characters.
  * Each gets its own voice in the pre-recorded clips; on the device's own speech they map to a gender.
  */
-export type VoiceKey = 'female' | 'male' | 'grandma' | 'grandpa' | 'mommy' | 'daddy' | 'santa' | 'critter' | 'bigcritter';
+export type VoiceKey =
+  | 'female' | 'male' | 'grandma' | 'grandpa' | 'mommy' | 'daddy' | 'santa' | 'critter' | 'bigcritter'
+  | 'heroF' | 'heroM' | 'villain' | 'queen' | 'narrator';
 
 export const VOICE_GENDER: Record<VoiceKey, 'female' | 'male'> = {
   female: 'female', male: 'male', grandma: 'female', grandpa: 'male', mommy: 'female', daddy: 'male',
   santa: 'male', critter: 'female', bigcritter: 'male',
+  heroF: 'female', heroM: 'male', villain: 'male', queen: 'female', narrator: 'male',
 };
 
 /** How a pre-recorded clip is looked up: language, voice and exact words. */

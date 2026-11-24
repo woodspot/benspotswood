@@ -96,8 +96,9 @@ export const sfx = {
   boop(): void {
     tone(330, 0.04, 0.22, 'sine', 0.18);
   },
-  /** A card turning over. */
+  /** A card turning over: a real card sound (Kenney, CC0), or two quick notes until it loads. */
   flip(): void {
+    if (playSample(Math.random() < 0.5 ? 'card' : 'card2', 0.7)) return;
     tone(660, 0, 0.08, 'triangle', 0.12);
     tone(880, 0.05, 0.08, 'triangle', 0.1);
   },
@@ -162,6 +163,26 @@ const clipUrl = (p: Part) => {
   const f = manifest[clipKey(p)];
   return f ? `/voice/${f}` : null;
 };
+
+/** Play a recorded sound effect from /sfx/ (loads it the first time; returns false until loaded). */
+const loadedSfx = new Map<string, AudioBuffer | null>();
+function playSample(name: string, vol = 0.8): boolean {
+  if (!ctx) return false;
+  const b = loadedSfx.get(name);
+  if (b === undefined) {
+    loadedSfx.set(name, null);
+    void bufferFor(`/sfx/${name}.mp3`).then((buf) => loadedSfx.set(name, buf));
+    return false;
+  }
+  if (!b) return false;
+  const src = ctx.createBufferSource();
+  src.buffer = b;
+  const g = ctx.createGain();
+  g.gain.value = vol;
+  src.connect(g).connect(ctx.destination);
+  src.start();
+  return true;
+}
 
 /** Fetch clips ahead of time (e.g. the keypad numbers) so the first tap has no delay. */
 export function preload(parts: Part[]): void {

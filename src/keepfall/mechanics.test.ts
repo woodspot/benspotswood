@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { chooseAction } from './ai';
 import { availableCards, card, describeCard, HEX_CARDS, setLockedCards, standardDeck } from './cards';
-import { battleSetup, chooseNode, finishBattle, newRun, takeReward } from './campaign';
+import { battleSetup, chooseNode, newRun, takeReward } from './campaign';
 import { legalActions, newGame, previewCard, step } from './engine';
 import { applyRun, lockedContent, newMeta, UNLOCKS } from './meta';
 import type { GameState } from './types';
@@ -121,27 +121,28 @@ describe('unlocks and siege', () => {
     expect(standardDeck()).toContain('hexfire');
   });
 
-  it('a run awards Renown, unlocks things, and a win opens the next Siege level', () => {
-    let run = chooseNode(newRun('warhost', 3), 0);
-    run.status = 'battle';
-    run.floor = 8;
-    run.path = [0, 0, 0, 0, 0, 0, 0, 0, 0];
-    run.map[8] = [{ type: 'boss', enemy: { name: 'Boss', faction: 'warhost', difficulty: 'hard', relics: [], picks: 0 } }];
-    run = finishBattle(run, true);
-    expect(run.status).toBe('won');
+  it('a won campaign awards Renown, unlocks things, and opens the next Storm level', () => {
+    const run = newRun('warhost', 3);
+    run.status = 'won';
+    run.act = 3;
+    run.bosses = 3;
+    run.battles.won = 10;
+    run.floorsCleared = 18;
     const r = applyRun(newMeta(), run);
-    expect(r.gained).toBeGreaterThan(30);
+    expect(r.gained).toBeGreaterThan(100);
     expect(r.newSiege).toBe(1);
     expect(r.unlocked.map((u) => u.id)).toContain(UNLOCKS[0].id);
+    expect(r.feats.map((f) => f.id)).toContain('king');
   });
 
-  it('Siege levels toughen enemies and cut banners', () => {
+  it('Storm levels toughen enemies and cut banners', () => {
     const easy = newRun('arcanists', 77);
-    const hard = newRun('arcanists', 77, { siege: 5 });
+    const hard = newRun('arcanists', 77, { siege: 6 });
     expect(hard.maxLives).toBe(2);
-    const boss = hard.map[8][0].enemy!;
+    const boss = hard.map[5][0].enemy!;
     expect(boss.relics).toContain('warden-might');
     expect(boss.relics).toContain('siege-walls');
+    expect(boss.relics).toContain('storm-ward');
     expect(easy.map[0][0].enemy!.difficulty).toBe('easy');
     expect(hard.map[0][0].enemy!.difficulty).toBe('normal');
   });

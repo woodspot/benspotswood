@@ -6,6 +6,8 @@ import { COLORS, SHAPES, type Target } from '../balloons/game';
 import { nameParts as matchNames, PICS } from '../match/game';
 import { CONTACTS, KEYS, keyWord } from '../phone/game';
 import { clipKey, en, es, type Lang, type Part } from '../kids/words';
+import { CAPTAINS } from '../keepfall/captains';
+import { BOSSES } from '../keepfall/campaign';
 
 const LANGS: Lang[] = ['en', 'es'];
 
@@ -47,10 +49,21 @@ function phone(): Part[] {
   return out;
 }
 
+/** Sky Armada: captains shout when they use their power; bosses taunt you. */
+function skyArmada(): Part[] {
+  return [
+    ...CAPTAINS.map((c): Part => ({ text: c.shout, lang: 'en', voice: c.voice })),
+    ...BOSSES.flatMap((b): Part[] => [
+      { text: b.start, lang: 'en', voice: b.voice },
+      { text: b.end, lang: 'en', voice: b.voice },
+    ]),
+  ];
+}
+
 /** Every phrase, once each. */
 export function allPhrases(): Part[] {
   const seen = new Map<string, Part>();
-  for (const p of [...shared(), ...balloons(), ...match(), ...phone()]) {
+  for (const p of [...shared(), ...balloons(), ...match(), ...phone(), ...skyArmada()]) {
     const key = clipKey(p);
     if (p.text && !seen.has(key)) seen.set(key, { text: p.text, lang: p.lang, voice: p.voice ?? 'female' });
   }

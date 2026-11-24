@@ -1,7 +1,7 @@
 // Card art: one icon per card from game-icons.net (CC BY 3.0, credited in "How to play").
 // Files live in public/icons/<card id>.svg and are tinted with a CSS mask.
 
-const baseId = (id: string) => id.replace(/\+$/, '');
+const baseId = (id: string) => id.replace(/\+?(?:~[gtb])?$/, '');
 
 /** The picture strip at the top of a card face. */
 export function cardArt(id: string): string {

@@ -50,15 +50,15 @@ describe('engine', () => {
 
   it('faction perks apply', () => {
     const s = newGame({ seed: 6, first: 0, factions: ['stonewardens', 'warhost'] });
-    expect(s.players[0].wall).toBe(20);
-    expect(s.players[1].res.steel).toBe(8); // 5 + Warhost bonus 3
+    expect(s.players[0].wall).toBe(22); // 10 + Ironclads bonus 12
+    expect(s.players[1].res.steel).toBe(10); // 5 + Corsairs bonus 5
     s.players[0].hand[0] = 'rampart'; // Build card, cost 4 → 3 for Stonewardens
     expect(costOf(s, 0, 'rampart')).toBe(3);
     s.current = 1;
     s.players[1].hand[0] = 'archers'; // 6 damage +1 for Warhost
     s.players[1].res.steel = 10;
     const n = step(s, { kind: 'play', index: 0 });
-    expect(n.players[0].wall).toBe(13);
+    expect(n.players[0].wall).toBe(15); // 22 Armor − 7 damage
   });
 
   it('events start after the first cycle and change the rules', () => {

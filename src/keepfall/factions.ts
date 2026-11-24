@@ -8,9 +8,10 @@ export interface Mods {
   prodDelta?: number; // added to each generator's output (never below 1)
   stealBonus?: number; // extra taken by 'steal' ops
   burnBonus?: number; // extra Altitude lost per Burn tick
+  burnTurns?: number; // extra turns your Burns last
 }
 
-export type FactionId = 'stonewardens' | 'arcanists' | 'warhost' | 'shadowmarch';
+export type FactionId = 'stonewardens' | 'arcanists' | 'warhost' | 'shadowmarch' | 'stormcallers';
 
 export interface FactionDef extends Mods {
   id: FactionId;
@@ -27,8 +28,8 @@ export const FACTIONS: FactionDef[] = [
     name: 'Ironclads',
     icon: '🛡️',
     blurb: 'Armored dreadnoughts that outlast every barrage.',
-    perks: ['Start with +10 Armor', 'Iron cards cost 1 less'],
-    start: { wall: 10 },
+    perks: ['Start with +12 Armor', 'Iron cards cost 1 less'],
+    start: { wall: 12 },
     costDelta: { stone: -1 },
   },
   {
@@ -36,8 +37,8 @@ export const FACTIONS: FactionDef[] = [
     name: 'Aethermancers',
     icon: '✨',
     blurb: 'Sky-mages who strike straight past the armor.',
-    perks: ['Start with +1 Aether Well and +3 Altitude', 'Spells that hit enemy Altitude deal +1'],
-    start: { gen: { mana: 1 }, tower: 3 },
+    perks: ['Start with +1 Aether Well and +1 Altitude', 'Spells that hit enemy Altitude deal +1'],
+    start: { gen: { mana: 1 }, tower: 1 },
     spellBonus: 1,
   },
   {
@@ -45,8 +46,8 @@ export const FACTIONS: FactionDef[] = [
     name: 'Corsairs',
     icon: '☠️',
     blurb: 'Gun-mad privateers who strike before the plating goes on.',
-    perks: ['Start with +3 Powder', 'All damage +1'],
-    start: { res: { steel: 3 } },
+    perks: ['Start with +5 Powder', 'All damage +1'],
+    start: { res: { steel: 5 } },
     damageBonus: 1,
   },
   {
@@ -60,6 +61,16 @@ export const FACTIONS: FactionDef[] = [
     burnBonus: 1,
   },
 ];
+
+FACTIONS.push({
+  id: 'stormcallers',
+  name: 'Stormcallers',
+  icon: '⚡',
+  blurb: 'Weather-witches who wrap their ships in lightning.',
+  perks: ['Start with 6 Ward', 'Your Burns last 1 turn longer'],
+  start: { ward: 6 },
+  burnTurns: 1,
+});
 
 export const FACTION_MAP = Object.fromEntries(FACTIONS.map((f) => [f.id, f])) as Record<FactionId, FactionDef>;
 
@@ -88,7 +99,7 @@ export const EVENT_MAP: Record<string, EventDef> = Object.fromEntries(EVENTS.map
 
 /** Combine several mod sources into one. */
 export function mergeMods(...list: (Mods | undefined)[]): Required<Mods> {
-  const out: Required<Mods> = { costDelta: {}, damageBonus: 0, spellBonus: 0, prodDelta: 0, stealBonus: 0, burnBonus: 0 };
+  const out: Required<Mods> = { costDelta: {}, damageBonus: 0, spellBonus: 0, prodDelta: 0, stealBonus: 0, burnBonus: 0, burnTurns: 0 };
   for (const m of list) {
     if (!m) continue;
     out.damageBonus += m.damageBonus ?? 0;
@@ -96,6 +107,7 @@ export function mergeMods(...list: (Mods | undefined)[]): Required<Mods> {
     out.prodDelta += m.prodDelta ?? 0;
     out.stealBonus += m.stealBonus ?? 0;
     out.burnBonus += m.burnBonus ?? 0;
+    out.burnTurns += m.burnTurns ?? 0;
     for (const [r, d] of Object.entries(m.costDelta ?? {}) as [Resource, number][]) {
       out.costDelta[r] = (out.costDelta[r] ?? 0) + d;
     }

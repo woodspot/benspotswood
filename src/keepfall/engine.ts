@@ -1,6 +1,7 @@
 import { building, card, choiceOf, standardDeck } from './cards';
 import { EVENTS, EVENT_MAP, FACTIONS, FACTION_MAP, mergeMods, type FactionId, type Mods } from './factions';
 import { RELIC_MAP } from './relics';
+import { CAPTAIN_MAP, usesFor } from './captains';
 import { DEFAULT_RULES, RESOURCES } from './types';
 import type { Action, Condition, GameState, Op, Player, Rules, StartBonus, WinKind } from './types';
 
@@ -42,7 +43,12 @@ function applyStart(p: Player, b: StartBonus | undefined, rules: Rules): void {
   for (const id of b.buildings ?? []) addBuilding(p, id, rules);
 }
 
-function newPlayer(name: string, faction: FactionId, relics: string[], deck: string[], rules: Rules): Player {
+export interface CaptainSetup {
+  id: string;
+  level: number;
+}
+
+function newPlayer(name: string, faction: FactionId, relics: string[], deck: string[], rules: Rules, captain?: CaptainSetup): Player {
   const p: Player = {
     name,
     faction,
@@ -61,6 +67,11 @@ function newPlayer(name: string, faction: FactionId, relics: string[], deck: str
   };
   applyStart(p, FACTION_MAP[faction].start, rules);
   for (const r of relics) applyStart(p, RELIC_MAP[r]?.start, rules);
+  const cap = captain && CAPTAIN_MAP[captain.id];
+  if (cap) {
+    p.captain = { id: cap.id, level: captain.level, uses: usesFor(captain.level) };
+    applyStart(p, cap.passive(captain.level).start, rules);
+  }
   return p;
 }
 
@@ -72,6 +83,7 @@ export interface NewGameOptions {
   relics?: [string[], string[]];
   first?: 0 | 1;
   rules?: Rules;
+  captains?: [CaptainSetup | undefined, CaptainSetup | undefined];
 }
 
 export function newGame(opts: NewGameOptions = {}): GameState {
@@ -85,8 +97,8 @@ export function newGame(opts: NewGameOptions = {}): GameState {
   const relics = opts.relics ?? [[], []];
   const state: GameState = {
     players: [
-      newPlayer(names[0], factions[0], relics[0], decks[0], rules),
-      newPlayer(names[1], factions[1], relics[1], decks[1], rules),
+      newPlayer(names[0], factions[0], relics[0], decks[0], rules, opts.captains?.[0]),
+      newPlayer(names[1], factions[1], relics[1], decks[1], rules, opts.captains?.[1]),
     ],
     current: 0,
     turn: 1,
@@ -117,6 +129,7 @@ export function modsFor(state: GameState, who: 0 | 1): Required<Mods> {
   return mergeMods(
     FACTION_MAP[p.faction],
     ...p.relics.map((r) => RELIC_MAP[r]),
+    p.captain ? CAPTAIN_MAP[p.captain.id]?.passive(p.captain.level).mods : undefined,
     state.event ? EVENT_MAP[state.event] : undefined,
   );
 }
@@ -139,6 +152,8 @@ function startTurn(state: GameState, rules: Rules): void {
     const b = building(id);
     for (const o of b.ops) applyOp(p, foe, o, plain, rules);
   }
+  // Relics, crew, traits and bosses that act every turn.
+  for (const r of p.relics) for (const o of RELIC_MAP[r]?.turnOps ?? []) applyOp(p, foe, o, plain, rules);
   // Burns placed on this player tick now.
   if (p.burnTurns > 0) {
     harmTower(p, p.burn);
@@ -181,6 +196,7 @@ export function legalActions(state: GameState): Action[] {
   if (state.winner !== null) return [];
   const who = state.current;
   const out: Action[] = [];
+  if ((state.players[who].captain?.uses ?? 0) > 0) out.push({ kind: 'power' });
   state.players[who].hand.forEach((id, index) => {
     if (canAfford(state, who, id)) {
       const ch = choiceOf(card(id));
@@ -198,6 +214,8 @@ const NO_MODS: Required<Mods> = mergeMods();
 export interface OpContext {
   chain: number;
   choice?: number;
+  redraw?: () => void; // 'redraw': discard the hand and draw a new one (needs the deck)
+  setEvent?: (id: string) => void; // 'weather': change the shared event
 }
 
 function test(cond: Condition, me: Player, foe: Player, ctx: OpContext): boolean {
@@ -270,7 +288,13 @@ export function applyOp(
       break;
     case 'burn':
       foe.burn += o.amt + mods.burnBonus;
-      foe.burnTurns = Math.max(foe.burnTurns, o.turns);
+      foe.burnTurns = Math.max(foe.burnTurns, o.turns + mods.burnTurns);
+      break;
+    case 'redraw':
+      ctx.redraw?.();
+      break;
+    case 'weather':
+      ctx.setEvent?.(o.event);
       break;
     case 'ward':
       me.ward += o.amt;
@@ -335,6 +359,35 @@ export function step(prev: GameState, action: Action, rules: Rules = DEFAULT_RUL
   const who = state.current;
   const me = state.players[who];
   const foe = state.players[1 - who];
+  const ctxFor = (choice?: number): OpContext => ({
+    chain: state.chain,
+    choice,
+    redraw: () => {
+      const n = me.hand.length;
+      me.discard.push(...me.hand);
+      me.hand = [];
+      for (let i = 0; i < n; i++) me.hand.push(draw(state, who));
+    },
+    setEvent: (id) => {
+      const e = EVENT_MAP[id];
+      if (!e) return;
+      state.event = id;
+      state.log.push({ player: who, kind: 'event', text: `${e.icon} ${e.name}: ${e.text}` });
+    },
+  });
+
+  // Captain's power: doesn't use a card or end the turn.
+  if (action.kind === 'power') {
+    const cap = me.captain && CAPTAIN_MAP[me.captain.id];
+    if (!cap || !me.captain || me.captain.uses <= 0) throw new Error('No power to use');
+    me.captain.uses--;
+    for (const o of cap.power.ops(me.captain.level)) applyOp(me, foe, o, modsFor(state, who), rules, ctxFor());
+    state.log.push({ player: who, kind: 'info', text: `${cap.icon} ${me.name} used ${cap.power.name}` });
+    checkWinner(state, rules);
+    if (state.winner !== null) state.log.push({ player: who, kind: 'info', text: state.winReason! });
+    return state;
+  }
+
   const cardId = me.hand[action.index];
   if (cardId === undefined) throw new Error('No card at that index');
   const c = card(cardId);
@@ -346,7 +399,7 @@ export function step(prev: GameState, action: Action, rules: Rules = DEFAULT_RUL
     const mods = modsFor(state, who);
     const ch = choiceOf(c);
     const choice = ch ? Math.min(ch.options.length - 1, Math.max(0, action.choice ?? 0)) : undefined;
-    const ctx: OpContext = { chain: state.chain, choice };
+    const ctx = ctxFor(choice);
     for (const o of c.ops) applyOp(me, foe, o, mods, rules, ctx);
     // "Play again" can sit inside the chosen option too.
     playAgain = c.ops.some((o) => o.op === 'again') || (ch !== undefined && ch.options[choice!].some((o) => o.op === 'again'));
@@ -357,9 +410,11 @@ export function step(prev: GameState, action: Action, rules: Rules = DEFAULT_RUL
   }
   state.lastAction = { player: who, kind: action.kind, cardId };
 
-  me.hand.splice(action.index, 1);
+  // (A 'redraw' card has already replaced the hand, so only remove the card if it's still there.)
+  if (me.hand[action.index] === cardId) me.hand.splice(action.index, 1);
+  else me.discard.splice(me.discard.lastIndexOf(cardId), 1);
   if (!(action.kind === 'play' && c.exhaust)) me.discard.push(cardId);
-  me.hand.push(draw(state, who));
+  while (me.hand.length < rules.handSize) me.hand.push(draw(state, who));
 
   checkWinner(state, rules);
   if (state.winner !== null) {

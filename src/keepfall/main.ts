@@ -1,25 +1,31 @@
 import { isLinked, lastSynced, link, sync, syncOnOpen, unlink } from '../kids/sync';
 import { ICON_CREDIT } from './art';
 import type { Difficulty } from './ai';
-import { abandonBattle, getState, initBattleChrome, startBattle } from './battle';
+import { abandonBattle, getState, initBattleChrome, startBattle, voice } from './battle';
 import {
-  battleSetup, camp, canCamp, chooseNode, currentNode, finishBattle, FLOORS, MIN_DECK, newRun, NODE_INFO,
-  SIEGE_RULES, takeReward, takeTreasure, type RunState,
+  ACT_INFO, ACTS, applyDailyMods, BOSSES, battleSetup, buyItem, buyService, camp, canCamp, canChoose, canService, chooseNode,
+  currentNode, finishBattle, FLOORS_PER_ACT, isCurrentRun, leaveDock, leaveMarket, MAX_SIEGE, MIN_DECK, newRun, NODE_INFO,
+  removePrice, rerollReward, resolveEvent, servicePrice, SIEGE_RULES, takeReward, takeTreasure, type RunState, type Service,
 } from './campaign';
-import { card, setLockedCards, STARTER_DECK } from './cards';
-import { applyRun, isUnlocked, lockedContent, newMeta, nextUnlock, UNLOCKS, type Meta, type RunResult } from './meta';
-import { setLockedRelics } from './relics';
+import { CAPTAIN_MAP, CAPTAINS, LEVEL_XP } from './captains';
+import { card, ENCHANTS, enchantId, setLockedCards, STARTER_DECK, upgradeId } from './cards';
 import { aiDeck, DRAFT_PICKS, offerCards, type RngHolder } from './draft';
+import { EVENT_DEF } from './events';
 import { FACTIONS, FACTION_MAP, type FactionId } from './factions';
-import { RELIC_MAP } from './relics';
+import {
+  applyRun, buy, canBuy, captainLevel, dailyAvailable, dailyFor, FEATS, FEAT_MAP, isOn, lockedContent, migrateMeta,
+  nextUnlock, owns, runOptionsFromMeta, spendable, today, toggleUpgrade, UNLOCKS, type Meta, type RunResult,
+} from './meta';
+import { RELIC_MAP, setLockedRelics } from './relics';
+import { SHOP, SHOP_MAP, type Slot } from './shipyard';
 import { sfx, unlock } from './sound';
-import { DEFAULT_RULES } from './types';
-import type { GameState } from './types';
-import { $, bind, cardFace, esc, hideDialog, initInfoPops, relicChip, relicTile, showDialog } from './ui';
+import { DEFAULT_RULES, type Enchant, type GameState } from './types';
+import { $, bind, cardFace, esc, hideDialog, initInfoPops, relicChip, relicTile, showDialog, toast } from './ui';
 
 const rules = DEFAULT_RULES;
-type Mode = 'quick' | 'draft' | 'campaign' | 'progress';
+type Mode = 'quick' | 'draft' | 'campaign' | 'shipyard' | 'progress';
 type FactionChoice = FactionId | 'random';
+type ShipTab = 'yard' | 'captain' | 'content' | 'cosmetic';
 
 const store = {
   get: (k: string) => localStorage.getItem(`keepfall.${k}`),
@@ -60,7 +66,7 @@ function syncCard(): string {
   if (!isLinked())
     return `<div class="sync-card">
       <b>☁️ Save progress across devices</b>
-      <p class="dim small">Enter your family code (the same one as Toy Phone) to keep your Renown, unlocks and campaign in step on every device.</p>
+      <p class="dim small">Enter your family code (the same one as Toy Phone) to keep your Renown, Shipyard, captains and campaign in step on every device.</p>
       <input id="sync-code" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="Family code (6+ characters)">
       <div class="sync-btns">
         <button class="diff-btn" data-act="sync-join" ${syncBusy ? 'disabled' : ''}>🔗 Join my family</button>
@@ -93,33 +99,69 @@ async function runSync(what: () => Promise<{ changedHere: boolean }>, ok: string
   showMenu();
 }
 
+const syncHandlers = {
+  'sync-join': () => {
+    const code = (document.getElementById('sync-code') as HTMLInputElement).value;
+    if (code.trim().length < 6) return void ((syncMsg = 'The family code needs at least 6 characters.'), showMenu());
+    if (!confirm('Switch this device to your family’s saved progress?')) return;
+    void runSync(() => link(code, 'join'), 'Joined! Your family’s progress is on this device.');
+  },
+  'sync-create': () => {
+    const code = (document.getElementById('sync-code') as HTMLInputElement).value;
+    if (code.trim().length < 6) return void ((syncMsg = 'The family code needs at least 6 characters.'), showMenu());
+    void runSync(() => link(code, 'create'), 'Family started! Use the same code on your other devices.');
+  },
+  'sync-now': () => void runSync(() => sync(), 'All synced.'),
+  'sync-unlink': () => {
+    if (!confirm('Stop syncing progress on this device? It keeps its progress as it is now.')) return;
+    unlink();
+    syncMsg = '';
+    showMenu();
+  },
+};
+
+// ── Settings and progress ──────────────────────────────────────
+
 let mode: Mode = (store.get('mode') as Mode) ?? 'quick';
 let difficulty: Difficulty = (store.get('difficulty') as Difficulty) ?? 'normal';
 let factionChoice: FactionChoice = (store.get('faction') as FactionChoice) ?? 'random';
+let shipTab: ShipTab = (store.get('shipTab') as ShipTab) ?? 'yard';
 let inBattle = false;
-
-// ── Progress between runs ──────────────────────────────────────
 
 function loadMeta(): Meta {
   try {
-    const m = JSON.parse(store.get('meta') ?? 'null') as Meta | null;
-    return m && m.version === 1 ? { ...newMeta(), ...m } : newMeta();
+    return migrateMeta(JSON.parse(store.get('meta') ?? 'null'));
   } catch {
-    return newMeta();
+    return migrateMeta(null);
   }
 }
 let meta = loadMeta();
 let siege = Math.min(Number(store.get('siege') ?? 0), meta.siegeUnlocked);
+const saveMeta = () => store.set('meta', JSON.stringify(meta));
 
 function applyLocks(): void {
   const locked = lockedContent(meta);
   setLockedCards(locked.cards);
   setLockedRelics(locked.relics);
 }
+
+/** Cosmetics: the stylesheet reads these from the page root. */
+function applyCosmetics(): void {
+  const root = document.documentElement;
+  const css = (slot: Slot, fallback: string) => SHOP_MAP[meta.equipped[slot] ?? '']?.css ?? fallback;
+  const [color, pattern] = css('paint', '#4fae7c').split('|');
+  root.style.setProperty('--paint', color);
+  root.dataset.pattern = pattern ?? '';
+  const flag = css('flag', 'currentColor');
+  root.dataset.flag = flag === 'rainbow' ? 'rainbow' : '';
+  root.style.setProperty('--flag', flag === 'rainbow' ? 'currentColor' : flag);
+  root.dataset.sky = (meta.equipped.sky ?? 'sky-dusk').replace('sky-', '');
+  root.dataset.cardback = (meta.equipped.cardback ?? 'back-classic').replace('back-', '');
+}
 applyLocks();
+applyCosmetics();
 
 const factionLocked = (id: FactionId) => lockedContent(meta).factions.includes(id);
-const unlockFor = (id: FactionId) => UNLOCKS.find((u) => u.id === id);
 if (factionChoice !== 'random' && factionLocked(factionChoice)) factionChoice = 'random';
 
 /** A random faction for the player (unlocked only), or any faction for an opponent. */
@@ -131,10 +173,17 @@ const resolveFaction = (c: FactionChoice) => (c === 'random' ? randomFaction(und
 
 // ── Campaign save ──────────────────────────────────────────────
 
+let oldRunNote = false;
 function loadRun(): RunState | null {
   try {
-    const r = JSON.parse(store.get('run') ?? 'null') as RunState | null;
-    return r && r.version === 1 ? r : null;
+    const r = JSON.parse(store.get('run') ?? 'null');
+    if (r && !isCurrentRun(r)) {
+      // A campaign from before Campaign 2.0: it can't be continued.
+      oldRunNote = true;
+      store.del('run');
+      return null;
+    }
+    return r;
   } catch {
     return null;
   }
@@ -144,20 +193,15 @@ const saveRun = (r: RunState) => store.set('run', JSON.stringify(r));
 // ── Shared menu pieces ─────────────────────────────────────────
 
 function factionPicker(allowRandom = true): string {
-  const tiles = FACTIONS.map((f) =>
-    factionLocked(f.id)
-      ? `<button class="faction locked" disabled>
-      <span class="f-icon">🔒</span><b>${f.name}</b>
-      <small>${f.blurb}</small>
-      <ul><li>Unlocks at ${unlockFor(f.id)?.at ?? '?'} Renown (you have ${meta.renown})</li></ul>
-    </button>`
-      : `
-    <button class="faction ${factionChoice === f.id ? 'sel' : ''}" data-act="faction" data-f="${f.id}">
-      <span class="f-icon">${f.icon}</span><b>${f.name}</b>
-      <small>${f.blurb}</small>
-      <ul>${f.perks.map((p) => `<li>${p}</li>`).join('')}</ul>
-    </button>`,
-  );
+  const tiles = FACTIONS.map((f) => {
+    if (factionLocked(f.id)) {
+      const how = f.id === 'stormcallers' ? `Buy in the Shipyard (⭐${SHOP_MAP['faction-stormcallers'].cost})` : `Unlocks at ${UNLOCKS.find((u) => u.id === f.id)?.at ?? '?'} Renown`;
+      return `<button class="faction locked" disabled><span class="f-icon">🔒</span><b>${f.name}</b><small>${f.blurb}</small><ul><li>${how}</li></ul></button>`;
+    }
+    return `<button class="faction ${factionChoice === f.id ? 'sel' : ''}" data-act="faction" data-f="${f.id}">
+      <span class="f-icon">${f.icon}</span><b>${f.name}</b><small>${f.blurb}</small>
+      <ul>${f.perks.map((p) => `<li>${p}</li>`).join('')}</ul></button>`;
+  });
   if (allowRandom)
     tiles.push(`<button class="faction ${factionChoice === 'random' ? 'sel' : ''}" data-act="faction" data-f="random">
       <span class="f-icon">🎲</span><b>Random</b><small>Let fate decide.</small></button>`);
@@ -177,17 +221,18 @@ const HOW_TO = `
     <p><b>Win</b> by climbing to <b>${rules.winTower}</b> Altitude and reaching the high harbor, knocking the enemy ship down to <b>0</b>, or stockpiling <b>${rules.winRes}</b> of any resource.</p>
     <p>Your <b>Foundry</b>, <b>Aether Well</b> and <b>Powder Mill</b> produce ⚙️ Iron, 🔮 Aether and 💣 Powder each turn. Shipwright cards cost Iron, Aether cards cost Aether, Gunnery cards cost Powder. Play one card or discard one. Damage hits the <b>Armor</b> before it knocks the ship's Altitude down.</p>
     <p><b>Modules</b> take one of your ${rules.buildingSlots} slots and act at the start of every one of your turns. A new module replaces your oldest when the slots are full.</p>
-    <p>Every ${rules.eventEvery} turns the <b>weather</b> changes the rules for both sides.</p>
+    <p>Every ${rules.eventEvery} turns the <b>weather</b> changes the rules for both sides. Weather cards change it on the spot.</p>
     <p><b>Keywords.</b> 💠 <b>Ward</b> blocks enemy damage, spells and burns before your Armor. 🔥 <b>Burn</b> takes Altitude at the start of the enemy's turns, ignoring Armor. ⚡ <b>Combo</b> triggers if you already played a card this turn. <b>Choose</b> cards let you pick one effect. 🗑️ <b>Junk</b> does nothing and leaves the deck when played.</p>
+    <p><b>Campaigns</b> cross three acts, each ending in a boss. Win battles for gold and cards, spend gold at 🛒 markets, take chances at ❓ events, and refit at ⚓ docks (upgrade, ✨ enchant or remove cards). Your <b>captain</b>'s power button can be used once per battle without ending your turn.</p>
     <p><b>On a phone</b>, tap a card to see what it would do (the +/− badges), then tap Play. Tap any icon for details.</p>
-    <p class="dim small credit">${ICON_CREDIT}</p>
+    <p class="dim small credit">${ICON_CREDIT} Sound effects by Kenney (kenney.nl), CC0.</p>
   </details>`;
 
 function siegePicker(): string {
-  if (meta.siegeUnlocked === 0) return '<p class="dim small">Beat the Iron Leviathan to unlock Storm levels: harder campaigns that pay more Renown.</p>';
+  if (meta.siegeUnlocked === 0) return '<p class="dim small">Win a campaign to unlock Storm levels: harder campaigns that pay more Renown (up to Storm 10).</p>';
   const btns = Array.from({ length: meta.siegeUnlocked + 1 }, (_, i) => `<button class="diff-btn ${i === siege ? 'sel' : ''}" data-act="siege" data-s="${i}">${i === 0 ? 'Off' : i}</button>`).join('');
   const rulesList = SIEGE_RULES.slice(1, siege + 1).map((r) => `<li>${r}</li>`).join('');
-  return `<div class="diff"><span>Storm:</span>${btns}</div>
+  return `<div class="diff wrap"><span>Storm:</span>${btns}</div>
     ${siege ? `<ul class="siege-rules">${rulesList}<li class="dim">+${siege * 20}% Renown</li></ul>` : ''}`;
 }
 
@@ -196,10 +241,88 @@ function renownBar(): string {
   const prev = [...UNLOCKS].reverse().find((u) => meta.renown >= u.at)?.at ?? 0;
   const pct = next ? Math.round(((meta.renown - prev) / (next.at - prev)) * 100) : 100;
   return `<div class="renown">
-    <div class="renown-top"><b>⭐ ${meta.renown} Renown</b><span>${next ? `Next: ${next.icon} ${next.name} at ${next.at}` : 'Everything unlocked'}</span></div>
+    <div class="renown-top"><b>⭐ ${spendable(meta)} Renown to spend</b><span>${meta.renown} lifetime${next ? ` · next unlock: ${next.icon} ${next.name} at ${next.at}` : ''}</span></div>
     <div class="bar"><i style="width:${pct}%"></i></div>
   </div>`;
 }
+
+const stars = (level: number) => '★'.repeat(level) + '☆'.repeat(5 - level);
+
+function captainPicker(): string {
+  const tiles = CAPTAINS.filter((c) => owns(meta, `captain-${c.id}`))
+    .map((c) => {
+      const lvl = captainLevel(meta, c.id);
+      const p = c.passive(lvl);
+      return `<button class="faction captain ${meta.captain === c.id ? 'sel' : ''}" data-act="captain" data-c="${c.id}">
+        <span class="f-icon">${c.icon}</span><b>${esc(c.name)}</b><small class="lvl">${stars(lvl)} level ${lvl}</small>
+        <ul><li>${esc(p.text)}</li><li><b>⚡ ${esc(c.power.name)}:</b> ${esc(c.power.text(lvl))}</li></ul></button>`;
+    })
+    .join('');
+  const more = CAPTAINS.some((c) => !owns(meta, `captain-${c.id}`)) ? '<p class="dim small">More captains in the ⚓ Shipyard.</p>' : '';
+  return `<h3 class="pick">Choose your captain</h3><div class="factions">${tiles}</div>${more}`;
+}
+
+function dailyCard(run: RunState | null): string {
+  const d = dailyFor(today());
+  const f = FACTION_MAP[d.faction];
+  const mods = d.mods.map((m) => `<li>${m.icon} <b>${m.name}:</b> ${m.text}</li>`).join('');
+  let action: string;
+  if (!dailyAvailable(meta)) action = meta.daily?.done ? `<p class="dim small">✅ Voyage complete today: +${meta.daily.renown ?? 0} Renown. Back tomorrow!</p>` : '<p class="dim small">You’ve set sail today. A new voyage tomorrow.</p>';
+  else if (run) action = '<p class="dim small">Finish or abandon your current campaign to take today’s voyage.</p>';
+  else action = '<button class="primary small" data-act="start-daily">⛵ Set sail</button>';
+  return `<div class="daily-card">
+    <b>📅 Daily Voyage · ${today()}</b>
+    <p class="dim small">The same seeded campaign for everyone today, as ${f.icon} ${f.name}. One attempt, Renown ×1.5 or more.</p>
+    <ul>${mods}</ul>${action}</div>`;
+}
+
+// ── Shipyard ───────────────────────────────────────────────────
+
+function shopTile(id: string): string {
+  const item = SHOP_MAP[id];
+  const have = owns(meta, id);
+  let btn: string;
+  if (!have) {
+    const blocked = item.requires && !owns(meta, item.requires);
+    btn = blocked
+      ? `<button class="diff-btn" disabled>Needs ${esc(SHOP_MAP[item.requires!].name)}</button>`
+      : `<button class="diff-btn buy" data-act="buy" data-id="${id}" ${canBuy(meta, id) ? '' : 'disabled'}>Buy ⭐${item.cost}</button>`;
+  } else if (item.slot === 'yard') btn = `<button class="diff-btn ${isOn(meta, id) ? 'sel' : ''}" data-act="toggle" data-id="${id}">${isOn(meta, id) ? 'On' : 'Off'}</button>`;
+  else if (item.slot === 'captain') {
+    const cid = id.slice(8);
+    btn = meta.captain === cid ? '<button class="diff-btn sel" disabled>Chosen</button>' : `<button class="diff-btn" data-act="captain" data-c="${cid}">Choose</button>`;
+  } else if (item.slot === 'content') btn = '<span class="owned">✓ Owned</span>';
+  else btn = meta.equipped[item.slot] === id || (!meta.equipped[item.slot] && item.cost === 0) ? '<button class="diff-btn sel" disabled>Wearing</button>' : `<button class="diff-btn" data-act="wear" data-id="${id}">Wear</button>`;
+  let extra = '';
+  if (item.slot === 'captain') {
+    const c = CAPTAIN_MAP[id.slice(8)];
+    const lvl = captainLevel(meta, c.id);
+    extra = `<small>${stars(lvl)} · ${esc(c.passive(lvl).text)} · ⚡ ${esc(c.power.name)}: ${esc(c.power.text(lvl))}</small>`;
+  }
+  return `<div class="shop-item ${have ? 'owned' : ''} s-${item.slot}" ${item.css ? `style="--swatch:${item.css.split('|')[0]}"` : ''}>
+    <span class="si-icon">${item.icon}</span><div class="si-text"><b>${esc(item.name)}</b><small>${esc(item.text)}</small>${extra}</div>${btn}</div>`;
+}
+
+function shipyardBody(): string {
+  const tabs = (['yard', 'captain', 'content', 'cosmetic'] as ShipTab[])
+    .map((t) => `<button class="tab small ${t === shipTab ? 'sel' : ''}" data-act="shiptab" data-t="${t}">${{ yard: '🔧 Upgrades', captain: '🧑‍✈️ Captains', content: '📦 New content', cosmetic: '🎨 Looks' }[t]}</button>`)
+    .join('');
+  let items: string;
+  if (shipTab === 'captain') {
+    const navigator = CAPTAIN_MAP.navigator;
+    const lvl = captainLevel(meta, 'navigator');
+    items = `<div class="shop-item owned"><span class="si-icon">${navigator.icon}</span><div class="si-text"><b>${navigator.name}</b><small>${navigator.blurb}</small><small>${stars(lvl)} · ${esc(navigator.passive(lvl).text)} · ⚡ ${esc(navigator.power.name)}: ${esc(navigator.power.text(lvl))}</small></div>${meta.captain === 'navigator' ? '<button class="diff-btn sel" disabled>Chosen</button>' : '<button class="diff-btn" data-act="captain" data-c="navigator">Choose</button>'}</div>`;
+    items += SHOP.filter((i) => i.slot === 'captain').map((i) => shopTile(i.id)).join('');
+    items += `<p class="dim small">Captains level up as you win campaign battles with them (XP needed: ${LEVEL_XP.slice(1).join(', ')}). Level 3 adds a passive bonus; level 5 lets you use the power twice per battle.</p>`;
+  } else if (shipTab === 'cosmetic') {
+    const group = (slot: Slot, title: string) => `<h4 class="shop-h">${title}</h4>${SHOP.filter((i) => i.slot === slot).map((i) => shopTile(i.id)).join('')}`;
+    items = group('paint', 'Envelope paint') + group('flag', 'Flags') + group('sky', 'Battle skies') + group('cardback', 'Card backs');
+  } else items = SHOP.filter((i) => i.slot === shipTab).map((i) => shopTile(i.id)).join('');
+  return `<p class="lead">Spend Renown on upgrades, captains, new cards and new looks. Lifetime Renown still counts toward unlocks.</p>
+    ${renownBar()}<div class="tabs">${tabs}</div><div class="shop">${items}</div>`;
+}
+
+// ── Progress ───────────────────────────────────────────────────
 
 function progressBody(): string {
   const unlocks = UNLOCKS.map((u) => {
@@ -210,13 +333,34 @@ function progressBody(): string {
   const levels = SIEGE_RULES.slice(1)
     .map((r, i) => `<li class="${i + 1 <= meta.siegeUnlocked ? '' : 'dim'}"><b>Storm ${i + 1}</b> ${i + 1 <= meta.siegeUnlocked ? '' : '🔒'} ${r}</li>`)
     .join('');
-  return `<p class="lead">Every campaign earns Renown, win or lose. Renown unlocks new content for good.</p>
+  const feats = FEATS.map((f) => {
+    const got = meta.feats.includes(f.id);
+    return `<button class="feat ${got ? 'got' : ''} ${meta.title === f.id ? 'sel' : ''}" ${got ? `data-act="title" data-f="${f.id}"` : 'disabled'} title="${got ? 'Tap to wear this title' : ''}">
+      <span>${got ? f.icon : '🔒'}</span><b>${esc(f.name)}</b><small>${esc(f.text)} · ⭐${f.renown}</small></button>`;
+  }).join('');
+  const log = meta.log.length
+    ? meta.log
+        .map((e, i) => {
+          const f = FACTION_MAP[e.faction];
+          const c = e.captain ? CAPTAIN_MAP[e.captain] : undefined;
+          return `<button class="log-row" data-act="logdeck" data-i="${i}"><span>${e.result === 'won' ? '👑' : '🏳️'}</span>
+            <span>${e.date}${e.daily ? ' · 📅' : ''}</span><span>${f?.icon ?? ''} ${c?.icon ?? ''}</span>
+            <span>${e.siege ? `⛈️${e.siege} · ` : ''}Act ${e.act} · ${e.floors} floors</span><b>⭐${e.renown}</b></button>`;
+        })
+        .join('')
+    : '<p class="dim small">Your finished campaigns will be logged here.</p>';
+  return `<p class="lead">Every campaign earns Renown, win or lose.</p>
     ${renownBar()}
     <div class="unlocks">${unlocks}</div>
+    <h3 class="pick">Feats ${meta.title ? `<small class="dim">· your title: ${esc(FEAT_MAP[meta.title]?.name ?? '')}</small>` : ''}</h3>
+    <p class="dim small">Earn Renown for special achievements. Tap an earned feat to wear it as your title.</p>
+    <div class="feats">${feats}</div>
     <h3 class="pick">Storm levels</h3>
-    <p class="dim small">Win a campaign to unlock the next level. Each adds to the ones before.</p>
+    <p class="dim small">Win a campaign to unlock the next level, up to Storm ${MAX_SIEGE}. Each adds to the ones before.</p>
     <ol class="siege-list">${levels}</ol>
-    <p class="record">Campaigns ${meta.runs} · won ${meta.wins} · best floor ${meta.bestFloor || '–'}</p>
+    <h3 class="pick">📖 Captain’s Log</h3>
+    <div class="captain-log">${log}</div>
+    <p class="record">Campaigns ${meta.runs} · won ${meta.wins} · most floors ${meta.bestFloor || '–'}</p>
     ${syncCard()}`;
 }
 
@@ -224,43 +368,53 @@ function progressBody(): string {
 
 function showMenu(): void {
   const run = loadRun();
-  const tabs = (['quick', 'draft', 'campaign', 'progress'] as Mode[])
-    .map((m) => `<button class="tab ${m === mode ? 'sel' : ''}" data-act="mode" data-m="${m}">${{ quick: '⚔️ Quick', draft: '🃏 Draft', campaign: '🗺️ Campaign', progress: '⭐ Progress' }[m]}</button>`)
+  // A finished campaign whose results haven't been seen yet: show them (and award its Renown) first.
+  if (mode === 'campaign' && run && (run.status === 'won' || run.status === 'lost')) return showRunEnd(run);
+  const tabs = (['quick', 'draft', 'campaign', 'shipyard', 'progress'] as Mode[])
+    .map((m) => `<button class="tab ${m === mode ? 'sel' : ''}" data-act="mode" data-m="${m}">${{ quick: '⚔️ Quick', draft: '🃏 Draft', campaign: '🗺️ Campaign', shipyard: '⚓ Shipyard', progress: '⭐ Progress' }[m]}</button>`)
     .join('');
 
   let body = '';
   if (mode === 'quick') {
-    body = `<p class="lead">One battle with the full deck of every card.</p>
+    body = `<p class="lead">One battle with the full deck of every card you own.</p>
       ${factionPicker()}${difficultyPicker()}
       <button class="primary" data-act="start-quick">Start battle</button>`;
   } else if (mode === 'draft') {
     body = `<p class="lead">Build your deck: ${DRAFT_PICKS} times, pick 1 of 3 cards to add to an ${STARTER_DECK.length}-card starter deck. The opponent drafts too.</p>
       ${factionPicker()}${difficultyPicker()}
       <button class="primary" data-act="start-draft">Start draft</button>`;
+  } else if (mode === 'shipyard') {
+    body = shipyardBody();
   } else if (mode === 'progress') {
     body = progressBody();
   } else if (run && run.status !== 'won' && run.status !== 'lost') {
     const f = FACTION_MAP[run.faction];
-    body = `<p class="lead">Campaign in progress${run.siege ? ` · Storm ${run.siege}` : ''}</p>
+    const cap = run.captain ? CAPTAIN_MAP[run.captain.id] : undefined;
+    body = `<p class="lead">${run.daily ? '📅 Daily Voyage in progress' : 'Campaign in progress'}${run.siege ? ` · Storm ${run.siege}` : ''}</p>
       <div class="run-summary">
-        <div>${f.icon} <b>${f.name}</b></div>
-        <div>Floor ${Math.max(1, run.floor + 1)} of ${FLOORS}</div>
-        <div>${'🚩'.repeat(run.lives)}<span class="dim">${'🏳️'.repeat(run.maxLives - run.lives)}</span></div>
-        <div>${run.deck.length} cards ${run.relics.map(relicChip).join('')}</div>
+        <div>${f.icon} <b>${f.name}</b> ${cap ? `· ${cap.icon} ${esc(cap.name)}` : ''}</div>
+        <div>Act ${run.act} of ${ACTS} · floor ${Math.max(1, run.floor + 1)} of ${FLOORS_PER_ACT}</div>
+        <div>${'🚩'.repeat(run.lives)}<span class="dim">${'🏳️'.repeat(Math.max(0, run.maxLives - run.lives))}</span> · 💰 ${run.gold}</div>
+        <div>${run.deck.length} cards ${[...run.relics, ...run.crew].map(relicChip).join('')}</div>
       </div>
       <button class="primary" data-act="continue-run">Continue campaign</button>
       <button class="ghost" data-act="abandon-run">Abandon and start over</button>`;
   } else {
-    const perks = [isUnlocked(meta, 'startRelic') && '🎒 choose a starting relic', isUnlocked(meta, 'startCard') && '📜 a free card pick'].filter(Boolean);
-    body = `<p class="lead">Fight across ${FLOORS} floors to reach ${esc('The Iron Leviathan')}. Grow your deck after each win, find relics, upgrade cards at docks. You have 3 banners; each lost battle costs one.</p>
+    const opts = runOptionsFromMeta(meta);
+    const perks = [opts.startRelic && '🎒 choose a starting relic', opts.startCard && '📜 a free card pick', opts.gold && `👛 ${opts.gold} gold`, opts.extraLives && '🚩 a spare banner'].filter(Boolean);
+    body = `${oldRunNote ? '<p class="dim small">Your previous campaign was from before the big campaign update and couldn’t be continued. Your Renown and unlocks are safe.</p>' : ''}
+      <p class="lead">Cross ${ACTS} acts (${ACT_INFO.map((a) => `${a.icon} ${a.name}`).join(', ')}), each ending in a boss. Win gold and cards, buy at markets, take chances at events and refit at docks.</p>
       ${renownBar()}
+      ${dailyCard(run)}
       ${factionPicker(false)}
+      ${captainPicker()}
       ${siegePicker()}
-      ${perks.length ? `<p class="dim small">You start with ${perks.join(' and ')}.</p>` : ''}
+      ${perks.length ? `<p class="dim small">You start with ${perks.join(', ')}.</p>` : ''}
       <button class="primary" data-act="start-run">Begin campaign</button>`;
   }
 
-  const d = showDialog(`<h2>Sky Armada</h2><div class="tabs">${tabs}</div>${body}${HOW_TO}`);
+  const title = meta.title ? `<p class="title-badge">${FEAT_MAP[meta.title]?.icon ?? ''} ${esc(FEAT_MAP[meta.title]?.name ?? '')}</p>` : '';
+  const d = showDialog(`<h2>Sky Armada</h2>${title}<div class="tabs">${tabs}</div>${body}${HOW_TO}`);
   bind(d, {
     mode: (el) => {
       mode = el.dataset.m as Mode;
@@ -271,6 +425,13 @@ function showMenu(): void {
     faction: (el) => {
       factionChoice = el.dataset.f as FactionChoice;
       store.set('faction', factionChoice);
+      sfx.click();
+      showMenu();
+    },
+    captain: (el) => {
+      meta.captain = el.dataset.c!;
+      saveMeta();
+      sfx.click();
       showMenu();
     },
     diff: (el) => {
@@ -283,48 +444,92 @@ function showMenu(): void {
       store.set('siege', String(siege));
       showMenu();
     },
+    shiptab: (el) => {
+      shipTab = el.dataset.t as ShipTab;
+      store.set('shipTab', shipTab);
+      sfx.click();
+      showMenu();
+    },
+    buy: (el) => {
+      const id = el.dataset.id!;
+      if (!canBuy(meta, id)) return void sfx.error();
+      meta = buy(meta, id);
+      saveMeta();
+      applyLocks();
+      applyCosmetics();
+      unlock();
+      sfx.coin();
+      setTimeout(sfx.unlock, 200);
+      toast(`<div class="toast-icon">${SHOP_MAP[id].icon}</div><b>${esc(SHOP_MAP[id].name)}</b><span>Yours! ⭐${spendable(meta)} Renown left.</span>`);
+      showMenu();
+    },
+    toggle: (el) => {
+      meta = toggleUpgrade(meta, el.dataset.id!);
+      saveMeta();
+      sfx.click();
+      showMenu();
+    },
+    wear: (el) => {
+      const item = SHOP_MAP[el.dataset.id!];
+      meta.equipped[item.slot] = item.id;
+      saveMeta();
+      applyCosmetics();
+      sfx.confirm();
+      showMenu();
+    },
+    title: (el) => {
+      meta.title = meta.title === el.dataset.f ? undefined : el.dataset.f;
+      saveMeta();
+      sfx.click();
+      showMenu();
+    },
+    logdeck: (el) => {
+      const e = meta.log[Number(el.dataset.i)];
+      if (e) showDeck(e.deck, showMenu, `Deck from ${e.date}`);
+    },
     'start-quick': () => startQuick(),
     'start-draft': () => startDraft(),
     'start-run': () => {
-      const run = newRun(resolveFaction(factionChoice), undefined, {
-        siege,
-        startRelic: isUnlocked(meta, 'startRelic'),
-        startCard: isUnlocked(meta, 'startCard'),
-      });
+      const run = newRun(resolveFaction(factionChoice), undefined, { ...runOptionsFromMeta(meta), siege });
       saveRun(run);
       unlock();
-      sfx.click();
+      sfx.confirm();
       route(run);
     },
+    'start-daily': () => startDaily(),
     'continue-run': () => {
       unlock();
       sfx.click();
       route(loadRun()!);
     },
-    'sync-join': () => {
-      const code = (document.getElementById('sync-code') as HTMLInputElement).value;
-      if (code.trim().length < 6) return void ((syncMsg = 'The family code needs at least 6 characters.'), showMenu());
-      if (!confirm('Switch this device to your family’s saved progress?')) return;
-      void runSync(() => link(code, 'join'), 'Joined! Your family’s progress is on this device.');
-    },
-    'sync-create': () => {
-      const code = (document.getElementById('sync-code') as HTMLInputElement).value;
-      if (code.trim().length < 6) return void ((syncMsg = 'The family code needs at least 6 characters.'), showMenu());
-      void runSync(() => link(code, 'create'), 'Family started! Use the same code on your other devices.');
-    },
-    'sync-now': () => void runSync(() => sync(), 'All synced.'),
-    'sync-unlink': () => {
-      if (!confirm('Stop syncing progress on this device? It keeps its progress as it is now.')) return;
-      unlink();
-      syncMsg = '';
-      showMenu();
-    },
     'abandon-run': () => {
-      if (!confirm('Abandon this campaign? Progress will be lost.')) return;
-      store.del('run');
+      if (!confirm('Abandon this campaign? It ends now (Renown is still awarded for how far you got).')) return;
+      const run = loadRun();
+      if (run) {
+        run.status = 'lost';
+        saveRun(run);
+        return showRunEnd(run);
+      }
       showMenu();
     },
+    ...syncHandlers,
   });
+}
+
+function startDaily(): void {
+  if (!dailyAvailable(meta)) return;
+  const date = today();
+  const d = dailyFor(date);
+  const mods = d.mods.map((m) => m.id);
+  meta.daily = { date, done: false };
+  saveMeta();
+  const opts = runOptionsFromMeta(meta);
+  let run = newRun(d.faction, d.seed, { ...opts, siege: mods.includes('storm') ? 3 : 0, daily: date, dailyMods: mods });
+  run = applyDailyMods(run, mods);
+  saveRun(run);
+  unlock();
+  sfx.confirm();
+  route(run);
 }
 
 function recordResult(s: GameState): { w: number; l: number } {
@@ -430,24 +635,34 @@ function route(run: RunState): void {
     case 'map': return showMap(run);
     case 'battle': return campaignBattle(run);
     case 'reward': return showReward(run);
+    case 'act': return showActComplete(run);
     case 'camp': return showCamp(run);
     case 'treasure': return showTreasure(run);
+    case 'event': return showEvent(run);
+    case 'market': return showMarket(run);
     default: return showRunEnd(run);
   }
 }
 
 function runHeader(run: RunState): string {
   const f = FACTION_MAP[run.faction];
+  const act = ACT_INFO[run.act - 1];
+  const cap = run.captain ? CAPTAIN_MAP[run.captain.id] : undefined;
   return `<div class="run-header">
     <span>${f.icon} ${f.name}</span>
+    ${cap ? `<span data-info="${esc(`${cap.icon} ${cap.name} (level ${run.captain!.level}): ${cap.passive(run.captain!.level).text}. Power: ${cap.power.name}: ${cap.power.text(run.captain!.level)}`)}">${cap.icon} Lv${run.captain!.level}</span>` : ''}
+    <span data-info="${esc(`${act.name}: ${act.text}`)}">${act.icon} Act ${run.act}</span>
     ${run.siege ? `<span class="siege-tag" data-info="${esc(SIEGE_RULES.slice(1, run.siege + 1).join(' · '))}">⛈️ Storm ${run.siege}</span>` : ''}
+    ${run.daily ? '<span class="siege-tag">📅 Daily</span>' : ''}
     <span title="Banners: each lost battle costs one">${'🚩'.repeat(run.lives)}<span class="dim">${'🏳️'.repeat(Math.max(0, run.maxLives - run.lives))}</span></span>
-    <span class="relics">${run.relics.map(relicChip).join('') || '<span class="dim">No relics</span>'}</span>
+    <span class="gold" data-info="Gold: spend it at markets">💰 ${run.gold}</span>
+    <span class="relics">${run.relics.map(relicChip).join('')}${run.crew.length ? ` <span class="crew">${run.crew.map(relicChip).join('')}</span>` : ''}${!run.relics.length && !run.crew.length ? '<span class="dim">No relics</span>' : ''}</span>
     <button class="ghost small" data-act="deck">Deck (${run.deck.length})</button>
   </div>`;
 }
 
 function showMap(run: RunState): void {
+  const act = ACT_INFO[run.act - 1];
   const rows = run.map
     .map((floor, fi) => {
       const nodes = floor
@@ -456,8 +671,9 @@ function showMap(run: RunState): void {
           const chosen = run.path[fi] === ni;
           const state = fi <= run.floor ? (chosen ? 'done' : 'skipped') : fi === run.floor + 1 ? 'next' : 'locked';
           const sub = n.enemy ? `<small>${esc(n.enemy.name)}</small>` : '';
+          const traits = n.enemy?.relics.filter((r) => r.startsWith('trait-')).map((r) => RELIC_MAP[r].icon).join('') ?? '';
           return `<button class="node n-${n.type} ${state}" ${state === 'next' ? `data-act="node" data-i="${ni}"` : 'disabled'} title="${esc(info.text)}">
-            <span class="n-icon">${info.icon}</span><b>${info.label}</b>${sub}</button>`;
+            <span class="n-icon">${info.icon}</span><b>${info.label}</b>${sub}${traits ? `<small>${traits}</small>` : ''}</button>`;
         })
         .join('');
       return `<div class="floor"><span class="floor-num">${fi + 1}</span>${nodes}</div>`;
@@ -465,15 +681,16 @@ function showMap(run: RunState): void {
     .reverse()
     .join('');
   const d = showDialog(
-    `<h2>Campaign</h2>${runHeader(run)}
-    <p class="lead">Choose where to go next. Hover a stop for details.</p>
+    `<h2>${act.icon} Act ${run.act}: ${act.name}</h2>${runHeader(run)}
+    <p class="lead">${act.text} Choose where to go next.</p>
+    ${run.eventResult ? `<p class="event-result">${esc(run.eventResult)}</p>` : ''}
     <div class="map">${rows}</div>
     <button class="ghost" data-act="menu">Save and quit to menu</button>`,
     true,
   );
   bind(d, {
     node: (el) => {
-      sfx.click();
+      sfx.confirm();
       const next = chooseNode(run, Number(el.dataset.i));
       saveRun(next);
       route(next);
@@ -481,34 +698,40 @@ function showMap(run: RunState): void {
     deck: () => showDeck(run.deck, () => showMap(run)),
     menu: showMenu,
   });
-  // Keep the next choice in view on small screens.
   d.querySelector('.node.next')?.scrollIntoView({ block: 'center' });
 }
 
 function campaignBattle(run: RunState): void {
-  const { run: r, enemy, enemyDeck } = battleSetup(run);
+  const { run: r, enemy, enemyDeck, myRelics } = battleSetup(run);
   saveRun(r);
   const node = currentNode(r)!;
+  const traits = enemy.relics.filter((x) => x.startsWith('trait-') || x.startsWith('boss-')).map((x) => `${RELIC_MAP[x].icon} ${RELIC_MAP[x].name}`);
+  const taunt = enemy.boss ? BOSSES.find((b) => b.id === enemy.boss) : undefined;
   battle(
     {
       enemyName: enemy.name,
       factions: [r.faction, enemy.faction],
       difficulty: enemy.difficulty,
       decks: [r.deck, enemyDeck],
-      relics: [r.relics, enemy.relics],
-      intro: `${NODE_INFO[node.type].label} · floor ${r.floor + 1}${enemy.relics.length ? ' · carries ' + enemy.relics.map((x) => RELIC_MAP[x].icon).join('') : ''}`,
+      relics: [myRelics, enemy.relics],
+      captain: r.captain,
+      eventEvery: enemy.eventEvery,
+      taunt: taunt ? [{ text: taunt.start, lang: 'en', voice: taunt.voice }] : undefined,
+      intro: `${NODE_INFO[node.type].label} · Act ${r.act}, floor ${r.floor + 1}${traits.length ? ' · ' + traits.join(', ') : ''}`,
     },
     (s) => {
       const won = s.winner === 0;
-      const next = finishBattle(r, won);
+      const next = finishBattle(r, won, s.turn, s.winKind);
       saveRun(next);
+      if (won && taunt) voice([{ text: taunt.end, lang: 'en', voice: taunt.voice }]);
+      if (won && next.pendingGold) setTimeout(sfx.coin, 400);
       const lostLine = !won
         ? next.status === 'lost'
           ? '<p class="lead">Your last banner falls.</p>'
-          : `<p class="lead">You lose a banner. ${'🚩'.repeat(next.lives)} left.${node.type === 'boss' ? ' The Leviathan awaits your return.' : ''}</p>`
-        : '';
+          : `<p class="lead">You lose a banner. ${'🚩'.repeat(next.lives)} left.${node.type === 'boss' ? ` ${esc(enemy.name)} awaits your return.` : ''}</p>`
+        : `<p class="lead gold-line">💰 +${next.pendingGold ?? 0} gold</p>`;
       const d = showDialog(`
-        <h2 class="${won ? 'win' : 'lose'}">${titleFor(s)}</h2>
+        <h2 class="${won ? 'win' : 'lose'}">${won && node.type === 'boss' ? `👑 ${esc(enemy.name)} defeated!` : titleFor(s)}</h2>
         <p class="lead">${outcomeText(s)} (turn ${s.turn})</p>${lostLine}
         <button class="primary" data-act="go">Continue</button>`);
       bind(d, { go: () => route(next) });
@@ -520,11 +743,12 @@ function showReward(run: RunState): void {
   let pickedCard: string | null = null;
   let pickedRelic: string | null = null;
   const render = () => {
-    const start = run.floor < 0;
+    const start = run.floor < 0 && run.act === 1;
     const d = showDialog(
       `<h2>${start ? '🎒 Supplies for the voyage' : 'Spoils of war'}</h2>${runHeader(run)}
       <p class="lead">${start ? 'Your Renown has earned you a head start.' : ''} ${run.pendingCards ? 'Add one card to your deck' : ''}${run.pendingCards && run.pendingRelics ? ' and claim a relic' : run.pendingRelics ? 'Claim a relic' : ''}.</p>
       <div class="offer" id="offer"></div>
+      ${run.pendingCards && run.rerolls > 0 ? `<button class="ghost small" data-act="reroll">🔭 Reroll cards (${run.rerolls} left)</button>` : ''}
       ${run.pendingRelics ? `<div class="relic-row">${run.pendingRelics.map((id) => relicTile(id, id === pickedRelic)).join('')}</div>` : ''}
       <button class="primary" data-act="take">${pickedCard || pickedRelic ? 'Take and continue' : 'Skip'}</button>`,
       true,
@@ -554,6 +778,59 @@ function showReward(run: RunState): void {
         saveRun(next);
         route(next);
       },
+      reroll: () => {
+        run = rerollReward(run);
+        saveRun(run);
+        pickedCard = null;
+        sfx.shuffle();
+        render();
+      },
+      deck: () => showDeck(run.deck, render),
+    });
+  };
+  render();
+}
+
+function showActComplete(run: RunState): void {
+  let pickedCard: string | null = null;
+  let pickedRelic: string | null = null;
+  const boss = BOSSES[run.act - 1];
+  const nextAct = ACT_INFO[run.act];
+  const render = () => {
+    const d = showDialog(
+      `<h2 class="win">👑 Act ${run.act} complete!</h2>${runHeader(run)}
+      <p class="lead">${esc(boss.name)} is defeated. Claim a <b>legendary card</b> and a relic, then sail on to ${nextAct.icon} ${nextAct.name}. Your crew recovered a banner.</p>
+      <div class="offer legendary" id="offer"></div>
+      <div class="relic-row">${(run.pendingRelics ?? []).map((id) => relicTile(id, id === pickedRelic)).join('')}</div>
+      <button class="primary" data-act="take">${pickedCard || pickedRelic ? `Onward to Act ${run.act + 1}` : 'Skip and sail on'}</button>`,
+      true,
+    );
+    const offer = $('offer');
+    for (const id of run.pendingCards ?? []) {
+      const el = cardFace(id);
+      el.classList.add('pickable');
+      if (id === pickedCard) el.classList.add('picked');
+      el.addEventListener('click', () => {
+        pickedCard = pickedCard === id ? null : id;
+        sfx.click();
+        render();
+      });
+      offer.appendChild(el);
+    }
+    d.querySelectorAll<HTMLElement>('[data-relic]').forEach((el) =>
+      el.addEventListener('click', () => {
+        pickedRelic = pickedRelic === el.dataset.relic ? null : el.dataset.relic!;
+        sfx.click();
+        render();
+      }),
+    );
+    bind(d, {
+      take: () => {
+        sfx.unlock();
+        const next = takeReward(run, pickedCard, pickedRelic);
+        saveRun(next);
+        route(next);
+      },
       deck: () => showDeck(run.deck, render),
     });
   };
@@ -578,69 +855,181 @@ function showTreasure(run: RunState): void {
   bind(d, { deck: () => showDeck(run.deck, () => showTreasure(run)) });
 }
 
+// ── Docks ──────────────────────────────────────────────────────
+
 function showCamp(run: RunState): void {
   const canRest = canCamp(run, { kind: 'rest' });
   const canRemove = run.deck.length > MIN_DECK;
+  const left = run.dockLeft ?? 1;
   const d = showDialog(
     `<h2>⚓ Dock</h2>${runHeader(run)}
-    <p class="lead">The ground crew salutes. Choose one.</p>
-    <div class="camp-options">
+    <p class="lead">The ground crew salutes. ${left > 1 ? `Choose <b>${left}</b> refits.` : 'Choose one refit.'}</p>
+    <div class="camp-options four">
       <button class="camp-opt" data-act="upgrade"><span>⚒️</span><b>Upgrade a card</b><small>Bigger numbers, permanently.</small></button>
+      <button class="camp-opt" data-act="enchant"><span>✨</span><b>Enchant a card</b><small>Gilded, Twin or Burning.</small></button>
       <button class="camp-opt" data-act="remove" ${canRemove ? '' : 'disabled'}><span>✂️</span><b>Remove a card</b><small>${canRemove ? 'Thin your deck.' : `Deck can't go below ${MIN_DECK}.`}</small></button>
       <button class="camp-opt" data-act="rest" ${canRest ? '' : 'disabled'}><span>🚩</span><b>Rest</b><small>${canRest ? 'Recover a banner.' : 'Banners are full.'}</small></button>
-    </div>`,
+    </div>
+    ${left < run.dockActions ? '<button class="ghost" data-act="leave">Set sail</button>' : ''}`,
     true,
   );
+  const after = (next: RunState) => {
+    saveRun(next);
+    route(next);
+  };
   bind(d, {
-    upgrade: () => pickFromDeck(run, 'upgrade'),
-    remove: () => pickFromDeck(run, 'remove'),
+    upgrade: () =>
+      pickCard(run, '⚒️ Upgrade which card?', 'Cards show their upgraded version.', (i) => canCamp(run, { kind: 'upgrade', index: i }), (id) => upgradeId(id), (i) => after(camp(run, { kind: 'upgrade', index: i })), () => showCamp(run)),
+    enchant: () => pickEnchant((ench) =>
+      pickCard(run, `${ENCHANTS[ench].icon} ${ENCHANTS[ench].name}: enchant which card?`, ENCHANTS[ench].text, (i) => canCamp(run, { kind: 'enchant', index: i, ench }), (id) => enchantId(id, ench), (i) => after(camp(run, { kind: 'enchant', index: i, ench })), () => showCamp(run)),
+      () => showCamp(run)),
+    remove: () =>
+      pickCard(run, '✂️ Remove which card?', 'Tap a card to remove it from your deck.', (i) => canCamp(run, { kind: 'remove', index: i }), (id) => id, (i) => after(camp(run, { kind: 'remove', index: i })), () => showCamp(run)),
     rest: () => {
       sfx.build();
-      const next = camp(run, { kind: 'rest' });
-      saveRun(next);
-      route(next);
+      after(camp(run, { kind: 'rest' }));
     },
+    leave: () => after(leaveDock(run)),
     deck: () => showDeck(run.deck, () => showCamp(run)),
   });
 }
 
-function pickFromDeck(run: RunState, kind: 'upgrade' | 'remove'): void {
+function pickEnchant(then: (e: Enchant) => void, back: () => void): void {
   const d = showDialog(
-    `<h2>${kind === 'upgrade' ? '⚒️ Upgrade which card?' : '✂️ Remove which card?'}</h2>
-    <p class="lead">${kind === 'upgrade' ? 'Cards show their upgraded version.' : 'Tap a card to remove it from your deck.'}</p>
-    <div class="deck-grid" id="grid"></div>
+    `<h2>✨ Choose an enchantment</h2>
+    <div class="camp-options">${(Object.keys(ENCHANTS) as Enchant[]).map((e) => `<button class="camp-opt" data-act="e" data-e="${e}"><span>${ENCHANTS[e].icon}</span><b>${ENCHANTS[e].name}</b><small>${ENCHANTS[e].text}</small></button>`).join('')}</div>
     <button class="ghost" data-act="back">Back</button>`,
     true,
   );
+  bind(d, { e: (el) => then(el.dataset.e as Enchant), back });
+}
+
+/** Pick a card from the deck: shows each card as it would become, greys out ones that can't be chosen. */
+function pickCard(run: RunState, title: string, lead: string, ok: (i: number) => boolean, preview: (id: string) => string, onPick: (i: number) => void, back: () => void): void {
+  const d = showDialog(`<h2>${title}</h2><p class="lead">${lead}</p><div class="deck-grid" id="grid"></div><button class="ghost" data-act="back">Back</button>`, true);
   const grid = $('grid');
   const order = run.deck.map((id, i) => ({ id, i })).sort((a, b) => card(a.id).type.localeCompare(card(b.id).type) || card(a.id).cost - card(b.id).cost);
   for (const { id, i } of order) {
-    const ok = canCamp(run, { kind, index: i });
-    const el = cardFace(kind === 'upgrade' && ok ? id + '+' : id);
-    el.classList.add(ok ? 'pickable' : 'unaffordable');
-    if (ok)
+    const can = ok(i);
+    const el = cardFace(can ? preview(id) : id);
+    el.classList.add(can ? 'pickable' : 'unaffordable');
+    if (can)
       el.addEventListener('click', () => {
         sfx.build();
-        const next = camp(run, { kind, index: i });
-        saveRun(next);
-        route(next);
+        onPick(i);
       });
     grid.appendChild(el);
   }
-  bind(d, { back: () => showCamp(run) });
+  bind(d, { back });
 }
 
-function showDeck(deck: string[], back: () => void): void {
+// ── Markets ────────────────────────────────────────────────────
+
+function showMarket(run: RunState): void {
+  const after = (next: RunState) => {
+    saveRun(next);
+    sfx.coin();
+    showMarket(next);
+  };
+  const items = run.market ?? [];
+  const relicItems = items
+    .map((it, i) => ({ it, i }))
+    .filter((x) => x.it.kind !== 'card')
+    .map(({ it, i }) => {
+      const r = RELIC_MAP[it.id];
+      return `<button class="relic-tile market ${it.sold ? 'sold' : ''}" ${it.sold || run.gold < it.price ? 'disabled' : ''} data-act="buy" data-i="${i}">
+        <span class="r-icon">${r.icon}</span><b>${esc(r.name)}</b><small>${esc(r.text)}</small><span class="price">${it.sold ? 'Sold' : `💰 ${it.price}`}</span></button>`;
+    })
+    .join('');
+  const svc = (kind: string, icon: string, label: string, price: number, enabled: boolean) =>
+    `<button class="camp-opt" data-act="svc" data-k="${kind}" ${enabled ? '' : 'disabled'}><span>${icon}</span><b>${label}</b><small>💰 ${price}</small></button>`;
+  const anyIndex = (pred: (id: string, i: number) => boolean) => run.deck.some((id, i) => pred(id, i));
   const d = showDialog(
-    `<h2>Your deck (${deck.length})</h2><div class="deck-grid" id="grid"></div><button class="primary" data-act="back">Back</button>`,
+    `<h2>🛒 Sky Market</h2>${runHeader(run)}
+    <p class="lead">Merchants call from their stalls. You have <b>💰 ${run.gold}</b> gold.</p>
+    <div class="offer" id="offer"></div>
+    <div class="relic-row">${relicItems}</div>
+    <h3 class="pick">Services</h3>
+    <div class="camp-options four">
+      ${svc('remove', '✂️', 'Remove a card', removePrice(run), anyIndex((_id, i) => canService(run, { kind: 'remove', index: i })))}
+      ${svc('upgrade', '⚒️', 'Upgrade a card', servicePrice(run, 'upgrade'), anyIndex((_id, i) => canService(run, { kind: 'upgrade', index: i })))}
+      ${svc('enchant', '✨', 'Enchant a card', servicePrice(run, 'enchant'), anyIndex((_id, i) => canService(run, { kind: 'enchant', index: i, ench: 'g' })))}
+      ${svc('banner', '🚩', 'Recover a banner', servicePrice(run, 'banner'), canService(run, { kind: 'banner' }))}
+    </div>
+    <button class="primary" data-act="leave">Leave market</button>`,
     true,
   );
+  const offer = $('offer');
+  items.forEach((it, i) => {
+    if (it.kind !== 'card') return;
+    const el = cardFace(it.id);
+    const can = !it.sold && run.gold >= it.price;
+    el.classList.add(can ? 'pickable' : 'unaffordable');
+    if (it.sold) el.classList.add('sold');
+    el.insertAdjacentHTML('beforeend', `<span class="price-tag">${it.sold ? 'Sold' : `💰 ${it.price}`}</span>`);
+    if (can) el.addEventListener('click', () => after(buyItem(run, i)));
+    offer.appendChild(el);
+  });
+  const back = () => showMarket(run);
+  bind(d, {
+    buy: (el) => after(buyItem(run, Number(el.dataset.i))),
+    svc: (el) => {
+      const k = el.dataset.k as Service['kind'];
+      if (k === 'banner') return after(buyService(run, { kind: 'banner' }));
+      if (k === 'remove')
+        return pickCard(run, '✂️ Remove which card?', `Costs 💰 ${removePrice(run)}.`, (i) => canService(run, { kind: 'remove', index: i }), (id) => id, (i) => after(buyService(run, { kind: 'remove', index: i })), back);
+      if (k === 'upgrade')
+        return pickCard(run, '⚒️ Upgrade which card?', `Costs 💰 ${servicePrice(run, 'upgrade')}.`, (i) => canService(run, { kind: 'upgrade', index: i }), (id) => upgradeId(id), (i) => after(buyService(run, { kind: 'upgrade', index: i })), back);
+      pickEnchant(
+        (ench) => pickCard(run, `${ENCHANTS[ench].icon} Enchant which card?`, `Costs 💰 ${servicePrice(run, 'enchant')}. ${ENCHANTS[ench].text}`, (i) => canService(run, { kind: 'enchant', index: i, ench }), (id) => enchantId(id, ench), (i) => after(buyService(run, { kind: 'enchant', index: i, ench })), back),
+        back,
+      );
+    },
+    leave: () => {
+      const next = leaveMarket(run);
+      saveRun(next);
+      route(next);
+    },
+    deck: () => showDeck(run.deck, back),
+  });
+}
+
+// ── Events ─────────────────────────────────────────────────────
+
+function showEvent(run: RunState): void {
+  const ev = EVENT_DEF[currentNode(run)!.event!];
+  const d = showDialog(
+    `<h2>${ev.icon} ${esc(ev.title)}</h2>${runHeader(run)}
+    <p class="lead event-text">${esc(ev.text)}</p>
+    <div class="event-choices">${ev.choices
+      .map((c, i) => `<button class="event-choice" data-act="choose" data-i="${i}" ${canChoose(run, i) ? '' : 'disabled'}><b>${esc(c.label)}</b><small>${esc(c.hint)}${c.needGold && run.gold < c.needGold ? ' (not enough gold)' : ''}</small></button>`)
+      .join('')}</div>`,
+    true,
+  );
+  sfx.event();
+  bind(d, {
+    choose: (el) => {
+      sfx.confirm();
+      const next = resolveEvent(run, Number(el.dataset.i));
+      saveRun(next);
+      if (next.status === 'battle') return route(next);
+      const dd = showDialog(`<h2>${ev.icon} ${esc(ev.title)}</h2><p class="lead">${esc(next.eventResult ?? '')}</p><button class="primary" data-act="go">Continue</button>`);
+      bind(dd, { go: () => route(next) });
+    },
+    deck: () => showDeck(run.deck, () => showEvent(run)),
+  });
+}
+
+function showDeck(deck: string[], back: () => void, title = `Your deck (${deck.length})`): void {
+  const d = showDialog(`<h2>${esc(title)}</h2><div class="deck-grid" id="grid"></div><button class="primary" data-act="back">Back</button>`, true);
   const grid = $('grid');
   [...deck]
     .sort((a, b) => card(a).type.localeCompare(card(b).type) || card(a).cost - card(b).cost)
     .forEach((id) => grid.appendChild(cardFace(id)));
   bind(d, { back });
 }
+
+// ── End of a campaign ──────────────────────────────────────────
 
 function showRunEnd(run: RunState): void {
   const won = run.status === 'won';
@@ -650,39 +1039,51 @@ function showRunEnd(run: RunState): void {
   if (!run.scored) {
     result = applyRun(meta, run);
     meta = result.meta;
-    store.set('meta', JSON.stringify(meta));
+    saveMeta();
     store.set('runResult', JSON.stringify(result));
     run.scored = true;
     saveRun(run);
     applyLocks();
+    if (result.feats.length || result.levelUp) setTimeout(sfx.unlock, 600);
   }
+  const level = result?.levelUp ? CAPTAIN_MAP[result.levelUp.captain] : undefined;
   const breakdown = result
     ? `<div class="renown-gain">
         ${result.lines.map((l) => `<div><span>${esc(l.label)}</span><b>+${l.amount}</b></div>`).join('')}
+        ${result.feats.map((f) => `<div class="feat-line"><span>${f.icon} Feat: ${esc(f.name)}</span><b>+${f.renown}</b></div>`).join('')}
         <div class="total"><span>Renown earned</span><b>⭐ +${result.gained}</b></div>
       </div>
+      ${level ? `<div class="unlock got new"><span class="u-icon">${level.icon}</span><div><b>${esc(level.name)} reached level ${result!.levelUp!.to}!</b><p>${esc(level.passive(result!.levelUp!.to).text)} · ⚡ ${esc(level.power.text(result!.levelUp!.to))}</p></div></div>` : ''}
       ${result.unlocked.map((u) => `<div class="unlock got new"><span class="u-icon">${u.icon}</span><div><b>Unlocked: ${u.name}</b><p>${u.text}</p></div></div>`).join('')}
       ${result.newSiege ? `<div class="unlock got new"><span class="u-icon">⛈️</span><div><b>Unlocked: Storm ${result.newSiege}</b><p>${SIEGE_RULES[result.newSiege]}</p></div></div>` : ''}
       ${renownBar()}`
     : '';
   const d = showDialog(`
-    <h2 class="${won ? 'win' : 'lose'}">${won ? '👑 The Iron Leviathan falls!' : 'Campaign over'}</h2>
-    <p class="lead">${won ? 'The high harbor is yours.' : `You reached floor ${run.floor + 1} of ${FLOORS}.`}</p>
+    <h2 class="${won ? 'win' : 'lose'}">${won ? '👑 The skies are yours!' : 'Campaign over'}</h2>
+    <p class="lead">${won ? `All ${ACTS} bosses defeated. The High Harbor is yours.` : `You reached Act ${run.act}, floor ${run.floor + 1}.`}</p>
     ${runHeader(run)}
-    <p class="record">Battles won ${run.battles.won} · lost ${run.battles.lost}</p>
+    <p class="record">Battles won ${run.battles.won} · lost ${run.battles.lost} · bosses ${run.bosses} · gold spent ${run.goldSpent}</p>
     ${breakdown}
-    <button class="primary" data-act="new">New campaign</button>
+    <button class="primary" data-act="shipyard">⚓ Visit the Shipyard</button>
+    <button class="ghost" data-act="new">New campaign</button>
     <button class="ghost" data-act="menu">Menu</button>`);
+  const clear = () => {
+    store.del('run');
+    store.del('runResult');
+  };
   bind(d, {
+    shipyard: () => {
+      clear();
+      mode = 'shipyard';
+      showMenu();
+    },
     new: () => {
-      store.del('run');
-      store.del('runResult');
+      clear();
       mode = 'campaign';
       showMenu();
     },
     menu: () => {
-      store.del('run');
-      store.del('runResult');
+      clear();
       showMenu();
     },
     deck: () => showDeck(run.deck, () => showRunEnd(run)),
