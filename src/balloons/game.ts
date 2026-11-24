@@ -138,13 +138,19 @@ export function promptFor(t: Target): string {
 
 export const NUMBER_WORDS = ['zero', 'one', 'two', 'three', 'four', 'five'];
 
-/** What the voice says after a right answer. It names the thing, so the word sticks. */
-export function praiseFor(done: Target, rng: Rng): string {
-  const cheer = pick(rng, ['Yay!', 'Great job!', 'You did it!', 'Hooray!', 'Well done!', 'Amazing!']);
-  if (done.kind === 'color') return `${cap(done.id)}! ${cheer}`;
-  if (done.kind === 'shape') return `A ${done.id}! ${cheer}`;
-  if (done.kind === 'count') return `${cap(NUMBER_WORDS[done.n])}! ${cheer}`;
-  return cheer;
+/** What the voice says after a right answer: just the word, so it sticks. */
+export function praiseFor(done: Target): string {
+  if (done.kind === 'color' || done.kind === 'shape') return `${cap(done.id)}!`;
+  if (done.kind === 'count') return `${cap(NUMBER_WORDS[done.n])}!`;
+  return 'Yay!';
+}
+
+/** The short follow-on ask after a right answer: "Now blue." */
+export function nextPrompt(t: Target): string {
+  if (t.kind === 'color') return `Now ${t.id}.`;
+  if (t.kind === 'shape') return `Now the ${t.id}.`;
+  if (t.kind === 'count') return `Now ${NUMBER_WORDS[t.n]}.`;
+  return '';
 }
 
 const cap = (w: string) => w[0].toUpperCase() + w.slice(1);

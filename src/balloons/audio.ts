@@ -81,13 +81,22 @@ if ('speechSynthesis' in window) {
   speechSynthesis.addEventListener?.('voiceschanged', chooseVoice);
 }
 
+let voiceOn = localStorage.getItem('balloons.voice') !== 'off';
+export const isVoiceOn = () => voiceOn;
+export function setVoiceOn(on: boolean): void {
+  voiceOn = on;
+  localStorage.setItem('balloons.voice', on ? 'on' : 'off');
+  if (!on && 'speechSynthesis' in window) speechSynthesis.cancel();
+}
+
 /** Say something, cutting off whatever was being said. */
 export function say(text: string): void {
-  if (!('speechSynthesis' in window)) return;
+  if (!voiceOn || !text || !('speechSynthesis' in window)) return;
   speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(text);
   if (voice) u.voice = voice;
-  u.rate = 0.9;
-  u.pitch = 1.15;
+  u.rate = 0.95;
+  u.pitch = 1;
+  u.volume = 0.8;
   speechSynthesis.speak(u);
 }

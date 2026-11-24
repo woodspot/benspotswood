@@ -1,15 +1,15 @@
 // Balloon Pop: a tapping game for toddlers. Balloons float up; a voice asks for a colour,
 // a shape or a number of pops. Every tap pops something, and nothing ever goes wrong.
-import { sfx, say, unlock } from './audio';
+import { isVoiceOn, setVoiceOn, sfx, say, unlock } from './audio';
 import {
-  COLOR_HEX, newSession, nextBalloon, pop, praiseFor, promptFor,
+  COLOR_HEX, newSession, nextBalloon, nextPrompt, pop, praiseFor, promptFor,
   type Mode, type Session, type ShapeId, type Spec, type Target,
 } from './game';
 
 const $ = (id: string) => document.getElementById(id)!;
 const rng = Math.random;
 const CELEBRATE_EVERY = 5; // a big party after this many right answers
-const IDLE_REPROMPT_MS = 9000;
+const IDLE_REPROMPT_MS = 25000; // one gentle reminder per target, only after a long pause
 
 // ── Drawing ────────────────────────────────────────────────────
 
@@ -67,6 +67,7 @@ let lastSpawn = 0;
 let lastTouch = 0;
 let lastFrame = 0;
 let rightAnswers = 0;
+let reminded = false;
 let wakeLock: { release(): Promise<void> } | null = null;
 
 const stage = () => $('stage');
@@ -113,8 +114,8 @@ function frame(now: number): void {
     }
     // Balloons that float off the top just go; new ones keep coming.
     for (const b of balloons.filter((x) => x.y < -bh)) remove(b);
-    if (now - lastTouch > IDLE_REPROMPT_MS && session.target.kind !== 'any') {
-      lastTouch = now;
+    if (!reminded && now - lastTouch > IDLE_REPROMPT_MS && session.target.kind !== 'any') {
+      reminded = true;
       say(promptFor(session.target));
     }
   }
@@ -167,6 +168,7 @@ function onPop(b: Balloon): void {
   lastTouch = performance.now();
   const asked: Target = session.target;
   const res = pop(session, b.spec, rng);
+  if (res.kind === 'right' && res.done) reminded = false;
 
   if (res.kind === 'free') {
     burst(cx, cy, [color, '#fff'], 14, 90);
@@ -175,24 +177,23 @@ function onPop(b: Balloon): void {
   } else if (res.kind === 'other') {
     burst(cx, cy, [color], 10, 60);
     setTimeout(sfx.boop, 80);
-    say(`${res.said} Can you find the ${describe(asked)}?`);
+    nudgeTarget(); // no talking: the picture at the top wiggles to show what to look for
   } else {
     burst(cx, cy, [color, ...CONFETTI], 22, 140);
     if (res.count) {
       bigText(cx, cy, String(res.count));
       sfx.count(res.count);
     }
-    if (!res.done) {
-      say(['', 'One!', 'Two!', 'Three!', 'Four!', 'Five!'][res.count ?? 0]);
-    } else {
+    if (res.done) {
       setTimeout(sfx.yay, res.count ? 250 : 60);
       rightAnswers++;
       renderTarget(asked, true);
       if (rightAnswers % CELEBRATE_EVERY === 0) {
-        say(praiseFor(asked, rng));
+        say(praiseFor(asked));
         setTimeout(celebrate, 1200);
       } else {
-        say(`${praiseFor(asked, rng)} ${promptFor(session.target)}`);
+        // One short line: name what they found, then the next thing. "Red! Now blue."
+        say(`${praiseFor(asked)} ${nextPrompt(session.target)}`);
         setTimeout(() => renderTarget(session.target), 900);
       }
     }
@@ -200,16 +201,17 @@ function onPop(b: Balloon): void {
   if (res.kind !== 'right' || !res.done) renderTarget(session.target);
 }
 
-function describe(t: Target): string {
-  if (t.kind === 'color') return `${t.id} one`;
-  if (t.kind === 'shape') return t.id;
-  return 'balloon';
+function nudgeTarget(): void {
+  const el = $('target');
+  el.classList.remove('nudge');
+  void el.offsetWidth;
+  el.classList.add('nudge');
 }
 
 function celebrate(): void {
   paused = true;
   sfx.fanfare();
-  say("Hooray! You're a super popper!");
+  say('Hooray!');
   const el = $('party');
   el.hidden = false;
   const { w, h } = size();
@@ -240,8 +242,6 @@ function renderTarget(t: Target, cheer = false): void {
 
 // ── Screens ────────────────────────────────────────────────────
 
-const MODE_WORD: Record<Mode, string> = { free: 'Pop pop pop!', colors: "Let's find colors!", shapes: "Let's find shapes!", count: "Let's count!" };
-
 function start(mode: Mode): void {
   unlock();
   session = newSession(mode, rng);
@@ -250,7 +250,8 @@ function start(mode: Mode): void {
   $('menu').hidden = true;
   $('game').hidden = false;
   renderTarget(session.target);
-  say(mode === 'free' ? MODE_WORD.free : `${MODE_WORD[mode]} ${promptFor(session.target)}`);
+  reminded = false;
+  if (mode !== 'free') say(promptFor(session.target));
   running = true;
   paused = false;
   lastFrame = 0;
@@ -284,6 +285,15 @@ function buildMenu(): void {
   $('modes').innerHTML = (Object.keys(pics) as Mode[])
     .map((m) => `<button class="mode m-${m}" data-mode="${m}"><span class="pic">${pics[m]}</span><span class="lbl">${label[m]}</span></button>`)
     .join('');
+  const voiceBtn = $('voice');
+  const showVoice = () => (voiceBtn.textContent = isVoiceOn() ? '🔊 Voice on' : '🔇 Voice off');
+  showVoice();
+  voiceBtn.addEventListener('click', () => {
+    setVoiceOn(!isVoiceOn());
+    showVoice();
+    unlock();
+    if (isVoiceOn()) say('Hello!');
+  });
   $('modes').addEventListener('click', (e) => {
     const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-mode]');
     if (btn) start(btn.dataset.mode as Mode);
@@ -296,7 +306,15 @@ function holdToExit(): void {
   let timer = 0;
   let t0 = 0;
   let raf = 0;
+  let hintTimer = 0;
   const reset = () => {
+    // Let go too early: leave the "Keep holding…" hint up for a moment so grown-ups learn the trick.
+    if (btn.classList.contains('holding')) {
+      btn.classList.add('hinting');
+      clearTimeout(hintTimer);
+      hintTimer = window.setTimeout(() => btn.classList.remove('hinting'), 1800);
+    }
+    btn.classList.remove('holding');
     clearTimeout(timer);
     cancelAnimationFrame(raf);
     btn.style.setProperty('--p', '0');
@@ -305,16 +323,22 @@ function holdToExit(): void {
     btn.style.setProperty('--p', String(Math.min(1, (performance.now() - t0) / 1500)));
     raf = requestAnimationFrame(tick);
   };
+  // iOS turns a long press into its own gesture and cancels the touch; stop that so holding works.
+  btn.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false });
   btn.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
     e.stopPropagation();
+    btn.setPointerCapture?.(e.pointerId);
+    btn.classList.add('holding');
     t0 = performance.now();
     tick();
     timer = window.setTimeout(() => {
+      btn.classList.remove('holding');
       reset();
       stop();
     }, 1500);
   });
-  for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) btn.addEventListener(ev, reset);
+  for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) btn.addEventListener(ev, reset);
 }
 
 function init(): void {

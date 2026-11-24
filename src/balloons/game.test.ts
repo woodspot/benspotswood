@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { colorPool, matches, mulberry32, newSession, nextBalloon, pop, praiseFor, promptFor, type Spec } from './game';
+import { colorPool, matches, mulberry32, newSession, nextBalloon, nextPrompt, pop, praiseFor, promptFor, type Spec } from './game';
 
 describe('balloon pop', () => {
   it('always keeps a matching balloon available', () => {
@@ -52,6 +52,7 @@ describe('balloon pop', () => {
   it('says friendly words', () => {
     expect(promptFor({ kind: 'color', id: 'red' })).toBe('Pop the red balloon!');
     expect(promptFor({ kind: 'count', n: 3 })).toBe('Pop three balloons!');
-    expect(praiseFor({ kind: 'shape', id: 'star' }, () => 0)).toBe('A star! Yay!');
+    expect(praiseFor({ kind: 'shape', id: 'star' })).toBe('Star!');
+    expect(nextPrompt({ kind: 'color', id: 'blue' })).toBe('Now blue.');
   });
 });

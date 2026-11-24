@@ -28,12 +28,13 @@
     <a class="back" href="/">← Games</a>
     <h1>Balloon <span>Pop!</span></h1>
     <div class="modes" id="modes"></div>
-    <p class="tip">Grown-ups: hold the 🏠 button to come back here.</p>
+    <button id="voice" class="voice-btn"></button>
+    <p class="tip">Grown-ups: press and hold the 🏠 button to come back here.</p>
   </section>
 
   <section id="game" hidden>
     <div id="stage" class="stage"></div>
-    <button id="home" class="home" aria-label="Hold to go home">🏠</button>
+    <button id="home" class="home" aria-label="Hold to go home">🏠<span class="hold-hint">Keep holding…</span></button>
     <button id="target" class="target" aria-label="Hear it again" hidden></button>
     <div id="party" class="party" hidden><div class="big-star">⭐</div></div>
   </section>
