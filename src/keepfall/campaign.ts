@@ -48,32 +48,32 @@ export interface RunOptions {
 
 export const MAX_SIEGE = 5;
 
-/** Each Siege level adds its rule on top of the ones below it. */
+/** Each Storm level (siege internally) adds its rule on top of the ones below it. */
 export const SIEGE_RULES = [
   'The standard campaign.',
   'Ordinary battles are one difficulty harder.',
-  'Every enemy has +6 Wall, +3 Tower and 3 more drafted cards.',
+  'Every enemy has +6 Armor, +3 Altitude and 3 more drafted cards.',
   'You have only 2 banners.',
   'Elites and the boss carry an extra relic.',
-  'The Iron Warden has +10 Tower.',
+  'The Iron Leviathan has +10 Altitude.',
 ];
 
 export const FLOORS = 9;
 export const MIN_DECK = 12;
 
 const ENEMY_NAMES = [
-  'Baron Ashcombe', 'The Gravel Queen', 'Mother Hollow', 'Sir Brannoc', 'The Tinker Lord',
-  'Warlock Vesk', 'Captain Rook', 'Lady Thornwick', 'Old Man Cairn', 'The Saltmarsh Twins',
+  'Captain Ashcombe', 'The Cloud Queen', 'Mother Gale', 'Commodore Brannoc', 'The Tinker Lord',
+  'Warlock Vesk', 'Captain Rook', 'Lady Thornwick', 'Old Man Cirrus', 'The Squall Twins',
 ];
-const ELITE_NAMES = ['The Black Bastion', 'Hexmother Ilse', 'General Kord', 'The Hollow Knight-Abbot'];
-export const BOSS_NAME = 'The Iron Warden';
+const ELITE_NAMES = ['The Black Galleon', 'Hexmother Ilse', 'Admiral Kord', 'The Hollow Zeppelin'];
+export const BOSS_NAME = 'The Iron Leviathan';
 
 export const NODE_INFO: Record<NodeType, { icon: string; label: string; text: string }> = {
-  battle: { icon: '⚔️', label: 'Battle', text: 'Fight a rival lord. Win to add a card to your deck.' },
+  battle: { icon: '⚔️', label: 'Battle', text: 'Fight a rival captain. Win to add a card to your deck.' },
   elite: { icon: '💀', label: 'Elite', text: 'A tough foe with a relic. Better rewards: a rare-leaning card and a relic.' },
-  camp: { icon: '🔥', label: 'Camp', text: 'Rest: upgrade a card, remove a card, or recover a banner.' },
-  treasure: { icon: '💎', label: 'Treasure', text: 'Choose one of three relics.' },
-  boss: { icon: '👑', label: 'Boss', text: `${BOSS_NAME} guards the last keep.` },
+  camp: { icon: '⚓', label: 'Dock', text: 'Refit: upgrade a card, remove a card, or recover a banner.' },
+  treasure: { icon: '💎', label: 'Salvage', text: 'A drifting wreck. Choose one of three relics.' },
+  boss: { icon: '👑', label: 'Boss', text: `${BOSS_NAME} guards the high harbor.` },
 };
 
 function pickOne<T>(h: RngHolder, list: T[]): T {

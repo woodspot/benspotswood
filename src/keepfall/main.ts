@@ -106,19 +106,19 @@ function difficultyPicker(): string {
 const HOW_TO = `
   <details class="rules">
     <summary>How to play</summary>
-    <p><b>Win</b> by raising your Tower to <b>${rules.winTower}</b>, knocking the enemy Tower to <b>0</b>, or stockpiling <b>${rules.winRes}</b> of any resource.</p>
-    <p>Your <b>Quarry</b>, <b>Sanctum</b> and <b>Barracks</b> produce ⛏️ Stone, 🔮 Mana and ⚔️ Steel each turn. Build cards cost Stone, Magic cards cost Mana, War cards cost Steel. Play one card or discard one. Damage hits the <b>Wall</b> before the Tower.</p>
-    <p><b>Buildings</b> take one of your ${rules.buildingSlots} slots and act at the start of every one of your turns. A new building replaces your oldest when the slots are full.</p>
-    <p>Every ${rules.eventEvery} turns a new <b>event</b> changes the rules for both sides.</p>
-    <p><b>Keywords.</b> 💠 <b>Ward</b> blocks enemy damage, spells and burns before your Wall. 🔥 <b>Burn</b> takes Tower at the start of the enemy's turns, ignoring the Wall. ⚡ <b>Combo</b> triggers if you already played a card this turn. <b>Choose</b> cards let you pick one effect. 🪨 <b>Rubble</b> is junk that leaves the deck when played.</p>
+    <p><b>Win</b> by climbing to <b>${rules.winTower}</b> Altitude and reaching the high harbor, knocking the enemy ship down to <b>0</b>, or stockpiling <b>${rules.winRes}</b> of any resource.</p>
+    <p>Your <b>Foundry</b>, <b>Aether Well</b> and <b>Powder Mill</b> produce ⚙️ Iron, 🔮 Aether and 💣 Powder each turn. Shipwright cards cost Iron, Aether cards cost Aether, Gunnery cards cost Powder. Play one card or discard one. Damage hits the <b>Armor</b> before it knocks the ship's Altitude down.</p>
+    <p><b>Modules</b> take one of your ${rules.buildingSlots} slots and act at the start of every one of your turns. A new module replaces your oldest when the slots are full.</p>
+    <p>Every ${rules.eventEvery} turns the <b>weather</b> changes the rules for both sides.</p>
+    <p><b>Keywords.</b> 💠 <b>Ward</b> blocks enemy damage, spells and burns before your Armor. 🔥 <b>Burn</b> takes Altitude at the start of the enemy's turns, ignoring Armor. ⚡ <b>Combo</b> triggers if you already played a card this turn. <b>Choose</b> cards let you pick one effect. 🗑️ <b>Junk</b> does nothing and leaves the deck when played.</p>
     <p><b>On a phone</b>, tap a card to see what it would do (the +/− badges), then tap Play. Tap any icon for details.</p>
   </details>`;
 
 function siegePicker(): string {
-  if (meta.siegeUnlocked === 0) return '<p class="dim small">Beat the Iron Warden to unlock Siege levels: harder campaigns that pay more Renown.</p>';
+  if (meta.siegeUnlocked === 0) return '<p class="dim small">Beat the Iron Leviathan to unlock Storm levels: harder campaigns that pay more Renown.</p>';
   const btns = Array.from({ length: meta.siegeUnlocked + 1 }, (_, i) => `<button class="diff-btn ${i === siege ? 'sel' : ''}" data-act="siege" data-s="${i}">${i === 0 ? 'Off' : i}</button>`).join('');
   const rulesList = SIEGE_RULES.slice(1, siege + 1).map((r) => `<li>${r}</li>`).join('');
-  return `<div class="diff"><span>Siege:</span>${btns}</div>
+  return `<div class="diff"><span>Storm:</span>${btns}</div>
     ${siege ? `<ul class="siege-rules">${rulesList}<li class="dim">+${siege * 20}% Renown</li></ul>` : ''}`;
 }
 
@@ -139,12 +139,12 @@ function progressBody(): string {
       <div><b>${u.name}</b> <small>${got ? 'Unlocked' : `${u.at} Renown`}</small><p>${u.text}</p></div></div>`;
   }).join('');
   const levels = SIEGE_RULES.slice(1)
-    .map((r, i) => `<li class="${i + 1 <= meta.siegeUnlocked ? '' : 'dim'}"><b>Siege ${i + 1}</b> ${i + 1 <= meta.siegeUnlocked ? '' : '🔒'} ${r}</li>`)
+    .map((r, i) => `<li class="${i + 1 <= meta.siegeUnlocked ? '' : 'dim'}"><b>Storm ${i + 1}</b> ${i + 1 <= meta.siegeUnlocked ? '' : '🔒'} ${r}</li>`)
     .join('');
   return `<p class="lead">Every campaign earns Renown, win or lose. Renown unlocks new content for good.</p>
     ${renownBar()}
     <div class="unlocks">${unlocks}</div>
-    <h3 class="pick">Siege levels</h3>
+    <h3 class="pick">Storm levels</h3>
     <p class="dim small">Win a campaign to unlock the next level. Each adds to the ones before.</p>
     <ol class="siege-list">${levels}</ol>
     <p class="record">Campaigns ${meta.runs} · won ${meta.wins} · best floor ${meta.bestFloor || '–'}</p>`;
@@ -171,7 +171,7 @@ function showMenu(): void {
     body = progressBody();
   } else if (run && run.status !== 'won' && run.status !== 'lost') {
     const f = FACTION_MAP[run.faction];
-    body = `<p class="lead">Campaign in progress${run.siege ? ` · Siege ${run.siege}` : ''}</p>
+    body = `<p class="lead">Campaign in progress${run.siege ? ` · Storm ${run.siege}` : ''}</p>
       <div class="run-summary">
         <div>${f.icon} <b>${f.name}</b></div>
         <div>Floor ${Math.max(1, run.floor + 1)} of ${FLOORS}</div>
@@ -182,7 +182,7 @@ function showMenu(): void {
       <button class="ghost" data-act="abandon-run">Abandon and start over</button>`;
   } else {
     const perks = [isUnlocked(meta, 'startRelic') && '🎒 choose a starting relic', isUnlocked(meta, 'startCard') && '📜 a free card pick'].filter(Boolean);
-    body = `<p class="lead">Fight across ${FLOORS} floors to reach ${esc('The Iron Warden')}. Grow your deck after each win, find relics, upgrade cards at camps. You have 3 banners; each lost battle costs one.</p>
+    body = `<p class="lead">Fight across ${FLOORS} floors to reach ${esc('The Iron Leviathan')}. Grow your deck after each win, find relics, upgrade cards at docks. You have 3 banners; each lost battle costs one.</p>
       ${renownBar()}
       ${factionPicker(false)}
       ${siegePicker()}
@@ -190,7 +190,7 @@ function showMenu(): void {
       <button class="primary" data-act="start-run">Begin campaign</button>`;
   }
 
-  const d = showDialog(`<h2>Keepfall</h2><div class="tabs">${tabs}</div>${body}${HOW_TO}`);
+  const d = showDialog(`<h2>Sky Armada</h2><div class="tabs">${tabs}</div>${body}${HOW_TO}`);
   bind(d, {
     mode: (el) => {
       mode = el.dataset.m as Mode;
@@ -251,8 +251,8 @@ function outcomeText(s: GameState): string {
   if (s.winner === 'draw') return 'Both sides won at the same moment.';
   const mine = s.winner === 0;
   switch (s.winKind) {
-    case 'destroy': return mine ? 'You toppled the enemy tower.' : 'Your tower has fallen.';
-    case 'tower': return mine ? `Your tower reached ${rules.winTower}.` : `Their tower reached ${rules.winTower}.`;
+    case 'destroy': return mine ? 'The enemy ship goes down in flames.' : 'Your ship goes down.';
+    case 'tower': return mine ? `You reached the high harbor at ${rules.winTower} Altitude.` : `They reached the high harbor at ${rules.winTower} Altitude.`;
     case 'hoard': return mine ? `You stockpiled ${rules.winRes} of a resource.` : `They stockpiled ${rules.winRes} of a resource.`;
     default: return s.winReason ?? '';
   }
@@ -352,7 +352,7 @@ function runHeader(run: RunState): string {
   const f = FACTION_MAP[run.faction];
   return `<div class="run-header">
     <span>${f.icon} ${f.name}</span>
-    ${run.siege ? `<span class="siege-tag" data-info="${esc(SIEGE_RULES.slice(1, run.siege + 1).join(' · '))}">🏰 Siege ${run.siege}</span>` : ''}
+    ${run.siege ? `<span class="siege-tag" data-info="${esc(SIEGE_RULES.slice(1, run.siege + 1).join(' · '))}">⛈️ Storm ${run.siege}</span>` : ''}
     <span title="Banners: each lost battle costs one">${'🚩'.repeat(run.lives)}<span class="dim">${'🏳️'.repeat(Math.max(0, run.maxLives - run.lives))}</span></span>
     <span class="relics">${run.relics.map(relicChip).join('') || '<span class="dim">No relics</span>'}</span>
     <button class="ghost small" data-act="deck">Deck (${run.deck.length})</button>
@@ -417,7 +417,7 @@ function campaignBattle(run: RunState): void {
       const lostLine = !won
         ? next.status === 'lost'
           ? '<p class="lead">Your last banner falls.</p>'
-          : `<p class="lead">You lose a banner. ${'🚩'.repeat(next.lives)} left.${node.type === 'boss' ? ' The Warden awaits your return.' : ''}</p>`
+          : `<p class="lead">You lose a banner. ${'🚩'.repeat(next.lives)} left.${node.type === 'boss' ? ' The Leviathan awaits your return.' : ''}</p>`
         : '';
       const d = showDialog(`
         <h2 class="${won ? 'win' : 'lose'}">${titleFor(s)}</h2>
@@ -434,7 +434,7 @@ function showReward(run: RunState): void {
   const render = () => {
     const start = run.floor < 0;
     const d = showDialog(
-      `<h2>${start ? '🎒 Supplies for the road' : 'Spoils of war'}</h2>${runHeader(run)}
+      `<h2>${start ? '🎒 Supplies for the voyage' : 'Spoils of war'}</h2>${runHeader(run)}
       <p class="lead">${start ? 'Your Renown has earned you a head start.' : ''} ${run.pendingCards ? 'Add one card to your deck' : ''}${run.pendingCards && run.pendingRelics ? ' and claim a relic' : run.pendingRelics ? 'Claim a relic' : ''}.</p>
       <div class="offer" id="offer"></div>
       ${run.pendingRelics ? `<div class="relic-row">${run.pendingRelics.map((id) => relicTile(id, id === pickedRelic)).join('')}</div>` : ''}
@@ -474,7 +474,7 @@ function showReward(run: RunState): void {
 
 function showTreasure(run: RunState): void {
   const d = showDialog(
-    `<h2>Treasure</h2>${runHeader(run)}
+    `<h2>💎 Salvage</h2>${runHeader(run)}
     <p class="lead">A forgotten vault. Take one relic.</p>
     <div class="relic-row">${(run.pendingRelics ?? []).map((id) => relicTile(id)).join('')}</div>`,
     true,
@@ -494,8 +494,8 @@ function showCamp(run: RunState): void {
   const canRest = canCamp(run, { kind: 'rest' });
   const canRemove = run.deck.length > MIN_DECK;
   const d = showDialog(
-    `<h2>🔥 Camp</h2>${runHeader(run)}
-    <p class="lead">The fire crackles. Choose one.</p>
+    `<h2>⚓ Dock</h2>${runHeader(run)}
+    <p class="lead">The ground crew salutes. Choose one.</p>
     <div class="camp-options">
       <button class="camp-opt" data-act="upgrade"><span>⚒️</span><b>Upgrade a card</b><small>Bigger numbers, permanently.</small></button>
       <button class="camp-opt" data-act="remove" ${canRemove ? '' : 'disabled'}><span>✂️</span><b>Remove a card</b><small>${canRemove ? 'Thin your deck.' : `Deck can't go below ${MIN_DECK}.`}</small></button>
@@ -574,12 +574,12 @@ function showRunEnd(run: RunState): void {
         <div class="total"><span>Renown earned</span><b>⭐ +${result.gained}</b></div>
       </div>
       ${result.unlocked.map((u) => `<div class="unlock got new"><span class="u-icon">${u.icon}</span><div><b>Unlocked: ${u.name}</b><p>${u.text}</p></div></div>`).join('')}
-      ${result.newSiege ? `<div class="unlock got new"><span class="u-icon">🏰</span><div><b>Unlocked: Siege ${result.newSiege}</b><p>${SIEGE_RULES[result.newSiege]}</p></div></div>` : ''}
+      ${result.newSiege ? `<div class="unlock got new"><span class="u-icon">⛈️</span><div><b>Unlocked: Storm ${result.newSiege}</b><p>${SIEGE_RULES[result.newSiege]}</p></div></div>` : ''}
       ${renownBar()}`
     : '';
   const d = showDialog(`
-    <h2 class="${won ? 'win' : 'lose'}">${won ? '👑 The Iron Warden falls!' : 'Campaign over'}</h2>
-    <p class="lead">${won ? 'The last keep is yours.' : `You reached floor ${run.floor + 1} of ${FLOORS}.`}</p>
+    <h2 class="${won ? 'win' : 'lose'}">${won ? '👑 The Iron Leviathan falls!' : 'Campaign over'}</h2>
+    <p class="lead">${won ? 'The high harbor is yours.' : `You reached floor ${run.floor + 1} of ${FLOORS}.`}</p>
     ${runHeader(run)}
     <p class="record">Battles won ${run.battles.won} · lost ${run.battles.lost}</p>
     ${breakdown}

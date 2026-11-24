@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#141826" />
+  <title>Sky Armada · Airship Card Duel</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/src/keepfall/style.css" />
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <a class="back" href="/" title="All games">←</a>
+      <h1>Sky Armada</h1>
+      <div id="turn-indicator" class="turn"></div>
+      <button id="btn-mute" class="ghost icon" title="Sound on/off">🔊</button>
+      <button id="btn-log" class="ghost" title="Battle log"><span class="ico">📜</span><span class="lbl">Log</span></button>
+      <button id="btn-menu" class="ghost" title="Menu"><span class="ico">☰</span><span class="lbl">Menu</span></button>
+    </header>
+
+    <section class="opp-hand" id="opp-hand" aria-label="Opponent's hand"></section>
+
+    <main class="board">
+      <aside class="panel" id="panel-0"></aside>
+      <div class="field" id="field">
+        <div class="event-banner" id="event-banner"></div>
+        <div class="goal-line" id="goal-line"><span id="goal-label"></span></div>
+        <div class="clouds" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+        <div class="ship" id="ship-0"></div>
+        <div class="played-slot" id="played-slot"></div>
+        <div class="ship enemy" id="ship-1"></div>
+        <div class="shadow" id="shadow-0"></div>
+        <div class="shadow" id="shadow-1"></div>
+        <div class="ground sea"></div>
+        <div class="action-sheet" id="action-sheet" hidden></div>
+      </div>
+      <aside class="panel" id="panel-1"></aside>
+    </main>
+
+    <section class="hand-area">
+      <div class="hint"><span id="hint"></span> <span class="deck-count" id="deck-count"></span></div>
+      <div class="hand" id="hand"></div>
+    </section>
+
+    <aside class="log" id="log" hidden>
+      <h3>Battle log</h3>
+      <ol id="log-list"></ol>
+    </aside>
+  </div>
+
+  <div class="toast" id="toast"></div>
+  <div class="info-pop" id="info-pop" hidden></div>
+
+  <div class="overlay" id="overlay">
+    <div class="dialog" id="dialog"></div>
+  </div>
+
+  <script type="module" src="/src/keepfall/main.ts"></script>
+</body>
+</html>

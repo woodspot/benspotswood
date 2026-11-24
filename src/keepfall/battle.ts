@@ -6,6 +6,7 @@ import { EVENT_MAP, FACTION_MAP, type FactionId } from './factions';
 import { isMuted, setMuted, sfx, unlock } from './sound';
 import { DEFAULT_RULES, RESOURCES } from './types';
 import type { Action, GameState, Op, Player } from './types';
+import { buildShip, setPlates } from './ship';
 import { $, cardFace, esc, ICON, relicChip, toast } from './ui';
 
 const rules = DEFAULT_RULES;
@@ -40,12 +41,12 @@ export function currentDifficulty(): Difficulty {
 // ── Rendering ──────────────────────────────────────────────────
 
 const KEYWORDS: [RegExp, string][] = [
-  [/Ward/, '💠 Ward blocks enemy damage, spells and burns before they reach your Wall or Tower.'],
-  [/Burn/, '🔥 Burn: the enemy Tower loses that much at the start of each of their turns, ignoring the Wall.'],
-  [/Rubble/, '🪨 Rubble is a junk card. It does nothing, but playing it removes it from the deck.'],
+  [/Ward/, '💠 Ward blocks enemy damage, spells and burns before they reach your Armor or Altitude.'],
+  [/Burn/, '🔥 Burn: the enemy ship loses that much Altitude at the start of each of their turns, ignoring Armor.'],
+  [/Junk/, '🗑️ Junk is a dud card. It does nothing, but playing it removes it from the deck.'],
   [/Combo/, '⚡ Combo: the bonus happens if you already played a card this turn.'],
   [/Play again/, '↻ Play again: take another turn straight away.'],
-  [/Each turn/, '🏗️ Buildings take one of your 3 slots and act at the start of every one of your turns.'],
+  [/Each turn/, '🔧 Modules take one of your 3 slots and act at the start of every one of your turns.'],
 ];
 
 function renderPanel(i: 0 | 1): void {
@@ -56,7 +57,7 @@ function renderPanel(i: 0 | 1): void {
   el.classList.toggle('active', state.current === i && state.winner === null);
   const slots = Array.from({ length: rules.buildingSlots }, (_, k) => {
     const id = p.buildings[k];
-    if (!id) return '<div class="slot empty" data-info="Empty building slot"></div>';
+    if (!id) return '<div class="slot empty" data-info="Empty module slot"></div>';
     const b = building(id);
     const info = `${b.icon} ${b.name}: ${b.ops.map(describeOp).join(', ')} at the start of each turn`;
     return `<div class="slot" data-info="${esc(info)}">${b.icon}<small>${esc(b.name)}</small></div>`;
@@ -65,7 +66,7 @@ function renderPanel(i: 0 | 1): void {
   if (p.ward) status.push(`<div class="stat ward" data-k="ward" data-info="${esc(KEYWORDS[0][1])}"><span>💠<em> Ward</em></span><b>${p.ward}</b></div>`);
   if (p.burnTurns)
     status.push(
-      `<div class="stat burn" data-k="burn" data-info="Burning: loses ${p.burn} Tower at the start of each turn for ${p.burnTurns} more turn${p.burnTurns > 1 ? 's' : ''}."><span>🔥<em> Burn</em></span><b>${p.burn}×${p.burnTurns}</b></div>`,
+      `<div class="stat burn" data-k="burn" data-info="Burning: loses ${p.burn} Altitude at the start of each turn for ${p.burnTurns} more turn${p.burnTurns > 1 ? 's' : ''}."><span>🔥<em> Burn</em></span><b>${p.burn}×${p.burnTurns}</b></div>`,
     );
   el.innerHTML = `
     <div class="p-head">
@@ -75,8 +76,8 @@ function renderPanel(i: 0 | 1): void {
       ${i === AI ? `<span class="hand-count" data-info="Cards in their hand">🃏${p.hand.length}</span>` : ''}
     </div>
     <div class="p-stats">
-      <div class="stat" data-k="tower"><span>🏰<em> Tower</em></span><b>${p.tower}</b></div>
-      <div class="stat" data-k="wall"><span>🧱<em> Wall</em></span><b>${p.wall}</b></div>
+      <div class="stat" data-k="tower"><span>🎈<em> Altitude</em></span><b>${p.tower}</b></div>
+      <div class="stat" data-k="wall"><span>🛡️<em> Armor</em></span><b>${p.wall}</b></div>
       ${status.join('')}
     </div>
     <div class="p-res">
@@ -92,32 +93,36 @@ function renderPanel(i: 0 | 1): void {
     <div class="slots" data-k="buildings">${slots}</div>`;
 }
 
-const WALL_MAX = 50;
+const SEA = 26; // px of sea at the bottom of the battlefield
 
-/** Tallest a tower can be drawn: whatever the battlefield leaves room for. */
-function towerMaxPx(): number {
+/** How far a ship can climb on screen: whatever the battlefield leaves room for. */
+function climbPx(shipH: number): number {
   const h = $('field').clientHeight || 370;
-  return Math.max(70, Math.min(260, h - 110));
+  return Math.max(30, h - SEA - shipH - 24);
 }
 
-function renderCastle(i: 0 | 1): void {
+/** Ships fly higher the more Altitude they have; 0 is in the sea, the goal is at the top. */
+function renderShip(i: 0 | 1): void {
   const p = state.players[i];
-  const el = $(`castle-${i}`);
-  const max = towerMaxPx();
-  const towerPx = Math.max(8, Math.min(1, p.tower / rules.winTower) * max);
-  const wallPx = Math.min(1, p.wall / WALL_MAX) * max * 0.6;
-  el.querySelector<HTMLElement>('.tower-body')!.style.height = `${towerPx}px`;
-  el.querySelector<HTMLElement>('.tower-num')!.textContent = String(p.tower);
-  const wall = el.querySelector<HTMLElement>('.wall')!;
-  wall.style.height = `${wallPx}px`;
-  wall.classList.toggle('gone', p.wall === 0);
-  el.querySelector<HTMLElement>('.wall-num')!.textContent = p.wall ? String(p.wall) : '';
+  const el = $(`ship-${i}`);
+  if (!el.firstElementChild) buildShip(el);
+  const shipH = el.offsetHeight || 120;
+  const climb = climbPx(shipH);
+  const frac = Math.max(0, Math.min(1, p.tower / rules.winTower));
+  el.style.bottom = `${SEA - shipH * 0.12 + frac * climb}px`;
+  el.classList.toggle('sunk', p.tower <= 0);
+  el.querySelector<HTMLElement>('.alt-num')!.textContent = String(p.tower);
+  el.querySelector<HTMLElement>('.armor-num')!.textContent = p.wall ? `🛡️${p.wall}` : '';
+  setPlates(el, p.wall);
   el.classList.toggle('warded', p.ward > 0);
   el.classList.toggle('burning', p.burnTurns > 0);
-  el.querySelector<HTMLElement>('.yard')!.innerHTML = p.buildings
-    .map((id) => `<span data-info="${esc(building(id).name)}">${building(id).icon}</span>`)
+  el.querySelector<HTMLElement>('.modules')!.innerHTML = p.buildings
+    .map((id) => `<span data-info="${esc(`${building(id).icon} ${building(id).name}`)}">${building(id).icon}</span>`)
     .join('');
-  $('goal-line').style.bottom = `${28 + max}px`;
+  const shadow = $(`shadow-${i}`);
+  shadow.style.opacity = String(0.55 - frac * 0.4);
+  shadow.style.transform = `scaleX(${1 - frac * 0.5})`;
+  $('goal-line').style.bottom = `${SEA - shipH * 0.12 + climb + shipH * 0.9}px`;
 }
 
 const myTurn = () => state.current === HUMAN && state.winner === null && !busy;
@@ -278,11 +283,11 @@ function showPreview(cardId: string, ch: number): void {
     if (added.length) slots?.insertAdjacentHTML('beforeend', badge(true, `+${added.join('')}`));
     if (lost.length) slots?.insertAdjacentHTML('beforeend', badge(false, `−${lost.join('')}`));
     const rubble = (p: Player) => p.deck.filter((x) => x === 'rubble').length;
-    if (rubble(b) > rubble(a)) panel.querySelector('.p-head')?.insertAdjacentHTML('beforeend', badge(false, `+${rubble(b) - rubble(a)} 🪨`));
-    // The castles too, so the battlefield shows the hit.
-    const castle = $(`castle-${i}`);
-    if (b.tower !== a.tower) castle.querySelector('.tower-num')?.insertAdjacentHTML('beforeend', badge(b.tower > a.tower, signed(b.tower - a.tower)));
-    if (b.wall !== a.wall) castle.querySelector('.wall-num')?.insertAdjacentHTML('beforeend', badge(b.wall > a.wall, signed(b.wall - a.wall)));
+    if (rubble(b) > rubble(a)) panel.querySelector('.p-head')?.insertAdjacentHTML('beforeend', badge(false, `+${rubble(b) - rubble(a)} 🗑️`));
+    // The ships too, so the battlefield shows the hit.
+    const ship = $(`ship-${i}`);
+    if (b.tower !== a.tower) ship.querySelector('.alt-num')?.insertAdjacentHTML('beforeend', badge(b.tower > a.tower, signed(b.tower - a.tower)));
+    if (b.wall !== a.wall) ship.querySelector('.armor-num')?.insertAdjacentHTML('beforeend', badge(b.wall > a.wall, `🛡️${signed(b.wall - a.wall)}`));
   });
 }
 
@@ -340,8 +345,8 @@ let lastTurnOwner: 0 | 1 | null = null;
 function render(): void {
   renderPanel(0);
   renderPanel(1);
-  renderCastle(0);
-  renderCastle(1);
+  renderShip(0);
+  renderShip(1);
   renderHands();
   renderSheet();
   renderPlayed();
@@ -380,14 +385,14 @@ function showDiffs(before: GameState, after: GameState): void {
     const a = before.players[i];
     const b = after.players[i];
     const panel = $(`panel-${i}`);
-    const castle = $(`castle-${i}`);
+    const ship = $(`ship-${i}`);
     const keys: [string, number, number][] = RESOURCES.map((r) => [r, a.res[r], b.res[r]] as [string, number, number]);
     for (const [k, x, y] of keys) if (x !== y) floatAt(panel.querySelector(`[data-k="${k}"]`), signed(y - x), y > x ? 'up' : 'down');
-    // Tower and wall changes float over the castles, big enough to see on a phone.
-    if (b.tower !== a.tower) floatAt(castle.querySelector('.tower-body'), signed(b.tower - a.tower), `big ${b.tower > a.tower ? 'up' : 'down'}`);
-    if (b.wall !== a.wall) floatAt(castle.querySelector('.wall-num'), `🧱${signed(b.wall - a.wall)}`, b.wall > a.wall ? 'up' : 'down');
-    if (b.ward !== a.ward) floatAt(castle.querySelector('.flag'), `💠${signed(b.ward - a.ward)}`, b.ward > a.ward ? 'up' : 'down');
-    if (b.burn > a.burn) floatAt(castle.querySelector('.flag'), '🔥 Burning', 'down');
+    // Altitude and armor changes float over the ships, big enough to see on a phone.
+    if (b.tower !== a.tower) floatAt(ship.querySelector('.alt-num'), signed(b.tower - a.tower), `big ${b.tower > a.tower ? 'up' : 'down'}`);
+    if (b.wall !== a.wall) floatAt(ship.querySelector('.ship-svg'), `🛡️${signed(b.wall - a.wall)}`, b.wall > a.wall ? 'up' : 'down');
+    if (b.ward !== a.ward) floatAt(ship.querySelector('.ship-body'), `💠${signed(b.ward - a.ward)}`, b.ward > a.ward ? 'up' : 'down');
+    if (b.burn > a.burn) floatAt(ship.querySelector('.ship-body'), '🔥 Burning', 'down');
     for (const r of RESOURCES) {
       if (a.gen[r] !== b.gen[r]) {
         floatAt(panel.querySelector(`[data-k="${r}"]`), `${signed(b.gen[r] - a.gen[r])} ${GEN_LABEL[r]}`, b.gen[r] > a.gen[r] ? 'up' : 'down');
@@ -397,17 +402,17 @@ function showDiffs(before: GameState, after: GameState): void {
     const slotsEl = panel.querySelector('[data-k="buildings"]');
     const added = b.buildings.filter((id) => !a.buildings.includes(id));
     const lost = a.buildings.filter((id) => !b.buildings.includes(id));
-    for (const id of added) floatAt(slotsEl, `${building(id).icon} built`, 'up');
+    for (const id of added) floatAt(slotsEl, `${building(id).icon} installed`, 'up');
     for (const id of lost) floatAt(slotsEl, `${building(id).icon} destroyed`, 'down');
     if (added.length) built = true;
     if (lost.length) hit = true;
     const rub = (p: Player) => [...p.deck, ...p.hand, ...p.discard].filter((x) => x === 'rubble').length;
-    if (rub(b) > rub(a)) floatAt(panel.querySelector('.p-head'), `+${rub(b) - rub(a)} 🪨 Rubble`, 'down');
+    if (rub(b) > rub(a)) floatAt(panel.querySelector('.p-head'), `+${rub(b) - rub(a)} 🗑️ Junk`, 'down');
     if (b.tower < a.tower || b.wall < a.wall) {
       hit = true;
-      castle.classList.remove('hit');
-      void castle.offsetWidth;
-      castle.classList.add('hit');
+      ship.classList.remove('hit');
+      void ship.offsetWidth;
+      ship.classList.add('hit');
     }
     if (b.tower > a.tower || b.wall > a.wall || b.ward > a.ward) built = true;
   });
@@ -494,7 +499,7 @@ export function startBattle(cfg: BattleConfig, done: (s: GameState) => void): vo
     relics: cfg.relics,
     rules,
   });
-  $('goal-label').textContent = `Tower goal ${rules.winTower}`;
+  $('goal-label').textContent = `⚓ High harbor · ${rules.winTower}`;
   busy = false;
   render();
   const f = FACTION_MAP[cfg.factions[1]];
@@ -545,8 +550,8 @@ export function initBattleChrome(): void {
   window.addEventListener('resize', () => {
     clearTimeout(resizeTimer);
     resizeTimer = window.setTimeout(() => {
-      renderCastle(0);
-      renderCastle(1);
+      renderShip(0);
+      renderShip(1);
       renderHands();
     }, 120);
   });

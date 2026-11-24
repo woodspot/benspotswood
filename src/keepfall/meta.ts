@@ -1,4 +1,4 @@
-// Progress that carries over between campaign runs: Renown, unlocks and Siege levels.
+// Progress that carries over between campaign runs: Renown, unlocks and Storm levels.
 import { HEX_CARDS } from './cards';
 import { FLOORS, MAX_SIEGE, type RunState } from './campaign';
 import type { FactionId } from './factions';
@@ -7,7 +7,7 @@ import { UNLOCKABLE_RELICS } from './relics';
 export interface Meta {
   version: 1;
   renown: number;
-  siegeUnlocked: number; // highest Siege level you may pick
+  siegeUnlocked: number; // highest Storm level you may pick
   runs: number;
   wins: number;
   bestFloor: number;
@@ -26,8 +26,8 @@ export interface UnlockDef {
 }
 
 export const UNLOCKS: UnlockDef[] = [
-  { id: 'shadowmarch', at: 25, icon: '🗡️', name: 'Shadowmarch', text: 'A new faction of thieves and hexers.' },
-  { id: 'hex', at: 60, icon: '🔥', name: 'Hex cards', text: 'Burns and curses join the card pool: Hexfire, Wasting Plague, Fire Arrows, Rubble Cart, Marauders.' },
+  { id: 'shadowmarch', at: 25, icon: '🗡️', name: 'Smugglers', text: 'A new faction of thieves and hexers.' },
+  { id: 'hex', at: 60, icon: '🔥', name: 'Hex cards', text: 'Burns and junk join the card pool: Hexfire, Corroding Fog, Fire Shot, Junk Barge, Raiders.' },
   { id: 'relics', at: 100, icon: '💍', name: 'Rare relics', text: "Five new relics can be found: Aegis Charm, Ember Heart, Thief's Glove, Hex Doll, Old War Map." },
   { id: 'startRelic', at: 150, icon: '🎒', name: 'Supplies', text: 'Begin each campaign by choosing 1 of 3 relics.' },
   { id: 'startCard', at: 220, icon: '📜', name: 'Veteran', text: 'Begin each campaign with a free pick of 3 strong cards.' },
@@ -53,7 +53,7 @@ export interface RenownLine {
   amount: number;
 }
 
-/** Renown earned by a finished run, itemised. Higher Siege levels pay 20% more per level. */
+/** Renown earned by a finished run, itemised. Higher Storm levels pay 20% more per level. */
 export function renownFor(run: RunState): { lines: RenownLine[]; total: number } {
   const floors = Math.max(0, run.status === 'won' ? FLOORS : run.floor);
   const lines: RenownLine[] = [
@@ -61,10 +61,10 @@ export function renownFor(run: RunState): { lines: RenownLine[]; total: number }
     { label: `Battles won (${run.battles.won})`, amount: run.battles.won * 4 },
   ];
   if (run.elites) lines.push({ label: `Elites beaten (${run.elites})`, amount: run.elites * 8 });
-  if (run.status === 'won') lines.push({ label: 'The Iron Warden falls', amount: 30 });
+  if (run.status === 'won') lines.push({ label: 'The Iron Leviathan falls', amount: 30 });
   const base = lines.reduce((t, l) => t + l.amount, 0);
   const siege = run.siege ?? 0;
-  if (siege > 0) lines.push({ label: `Siege ${siege} bonus (+${siege * 20}%)`, amount: Math.round(base * siege * 0.2) });
+  if (siege > 0) lines.push({ label: `Storm ${siege} bonus (+${siege * 20}%)`, amount: Math.round(base * siege * 0.2) });
   return { lines, total: lines.reduce((t, l) => t + l.amount, 0) };
 }
 
@@ -73,7 +73,7 @@ export interface RunResult {
   gained: number;
   lines: RenownLine[];
   unlocked: UnlockDef[];
-  newSiege: number | null; // Siege level unlocked by this win
+  newSiege: number | null; // Storm level unlocked by this win
 }
 
 export function applyRun(prev: Meta, run: RunState): RunResult {

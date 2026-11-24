@@ -100,7 +100,7 @@ describe('new mechanics', () => {
   it('upgrades scale new ops', () => {
     expect(describeCard(card('glyph+'))[0]).toBe('+7 Ward');
     expect(describeCard(card('hexfire+'))[0]).toBe('Burn 3 for 3 turns');
-    expect(describeCard(card('pact+'))).toContain('② +8 Tower');
+    expect(describeCard(card('pact+'))).toContain('② +8 Altitude');
   });
 
   it('AI games with the new cards finish', () => {

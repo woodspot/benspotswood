@@ -7,6 +7,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         hub: resolve(import.meta.dirname, 'index.html'),
+        skyarmada: resolve(import.meta.dirname, 'skyarmada/index.html'),
         keepfall: resolve(import.meta.dirname, 'keepfall/index.html'),
       },
     },

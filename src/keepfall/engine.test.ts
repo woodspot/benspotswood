@@ -120,7 +120,7 @@ describe('engine', () => {
   });
 
   it('upgraded cards have bigger numbers', () => {
-    expect(card('archers+').name).toBe('Archers+');
+    expect(card('archers+').name).toBe('Deck Cannons+');
     expect(card('archers+').ops).toEqual([{ op: 'damage', amt: 8 }]);
     expect(card('recruiter+').cost).toBe(1); // nothing to scale → cheaper
     expect(card('b-catapult+').ops).toEqual([{ op: 'build', building: 'catapult+' }]);

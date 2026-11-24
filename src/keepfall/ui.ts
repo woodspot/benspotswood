@@ -1,12 +1,13 @@
 // Shared bits of UI used by the battle screen and the menus.
 import { card, describeCard, rarity, RES_LABEL } from './cards';
+import { cardArt } from './art';
 import { RELIC_MAP } from './relics';
 import type { Resource } from './types';
 
 export const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
-export const ICON: Record<Resource, string> = { stone: '⛏️', mana: '🔮', steel: '⚔️' };
-export const TYPE_TITLE: Record<Resource, string> = { stone: 'Build', mana: 'Magic', steel: 'War' };
+export const ICON: Record<Resource, string> = { stone: '⚙️', mana: '🔮', steel: '💣' };
+export const TYPE_TITLE: Record<Resource, string> = { stone: 'Shipwright', mana: 'Aether', steel: 'Gunnery' };
 
 export function esc(s: string): string {
   return s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
@@ -24,8 +25,9 @@ export function cardFace(id: string, opts: { cost?: number; unaffordable?: boole
   el.innerHTML = `
     <div class="card-head">
       <span class="cost ${costCls}" title="Costs ${cost} ${RES_LABEL[c.type]}">${cost}<i>${ICON[c.type]}</i></span>
-      <span class="ctype">${isBuilding ? 'Building' : TYPE_TITLE[c.type]}</span>
+      <span class="ctype">${isBuilding ? 'Module' : TYPE_TITLE[c.type]}</span>
     </div>
+    ${cardArt(id)}
     <div class="card-name">${esc(c.name)}</div>
     <ul class="card-text">${describeCard(c).map((t) => `<li>${esc(t)}</li>`).join('')}</ul>
     ${c.flavor ? `<div class="flavor">${esc(c.flavor)}</div>` : ''}`;

@@ -319,8 +319,8 @@ function checkWinner(state: GameState, rules: Rules): void {
     state.winner = w;
     state.winKind = kind;
     state.winReason =
-      kind === 'destroy' ? `${name} won by toppling the enemy tower`
-      : kind === 'tower' ? `${name} won by raising their tower to ${rules.winTower}`
+      kind === 'destroy' ? `${name} won by bringing the enemy ship down`
+      : kind === 'tower' ? `${name} won by climbing to ${rules.winTower} Altitude`
       : `${name} won by stockpiling ${rules.winRes} of a resource`;
   }
 }

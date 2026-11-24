@@ -16,96 +16,96 @@ const when = (cond: Condition, ...then: Op[]): Op => ({ op: 'if', cond, then });
 const choose = (...options: Op[][]): Op => ({ op: 'choose', options });
 
 export const CARDS: CardDef[] = [
-  // ── Stone: building ──────────────────────────────────────────
-  { id: 'mortar', name: 'Mortar Mix', type: 'stone', cost: 1, copies: 3, ops: [wall(3)] },
-  { id: 'cornerstone', name: 'Cornerstone', type: 'stone', cost: 2, copies: 2, ops: [tower(2), again], flavor: 'Lay it true, then keep going.' },
-  { id: 'stonecutters', name: 'Stonecutters', type: 'stone', cost: 3, copies: 2, ops: [gen('stone', 1)] },
-  { id: 'rampart', name: 'Rampart', type: 'stone', cost: 4, copies: 2, ops: [wall(6)] },
-  { id: 'watchtower', name: 'Watchtower', type: 'stone', cost: 5, copies: 2, ops: [tower(5)] },
-  { id: 'buttress', name: 'Buttress', type: 'stone', cost: 6, copies: 2, ops: [wall(4), tower(3)] },
-  { id: 'tunnel', name: 'Collapse Tunnel', type: 'stone', cost: 7, copies: 1, ops: [wall(-9, 'enemy')] },
-  { id: 'guild', name: "Masons' Guild", type: 'stone', cost: 8, copies: 1, ops: [gen('stone', 2)] },
-  { id: 'landslide', name: 'Landslide', type: 'stone', cost: 10, copies: 1, ops: [gen('stone', -1, 'enemy'), wall(-6, 'enemy')] },
-  { id: 'greatwall', name: 'Great Wall', type: 'stone', cost: 12, copies: 1, ops: [wall(15)] },
-  { id: 'spire', name: 'Keep Spire', type: 'stone', cost: 15, copies: 1, ops: [tower(13)] },
-  { id: 'bastion', name: 'Granite Bastion', type: 'stone', cost: 18, copies: 1, ops: [wall(12), tower(8)] },
+  // ── Iron (stone): shipwrights ──────────────────────────────────────────
+  { id: 'mortar', name: 'Rivets', type: 'stone', cost: 1, copies: 3, ops: [wall(3)] },
+  { id: 'cornerstone', name: 'Drop Ballast', type: 'stone', cost: 2, copies: 2, ops: [tower(2), again], flavor: 'Lighter is higher.' },
+  { id: 'stonecutters', name: 'Ore Barge', type: 'stone', cost: 3, copies: 2, ops: [gen('stone', 1)] },
+  { id: 'rampart', name: 'Iron Plating', type: 'stone', cost: 4, copies: 2, ops: [wall(6)] },
+  { id: 'watchtower', name: 'Lift Bag', type: 'stone', cost: 5, copies: 2, ops: [tower(5)] },
+  { id: 'buttress', name: 'Reinforced Keel', type: 'stone', cost: 6, copies: 2, ops: [wall(4), tower(3)] },
+  { id: 'tunnel', name: 'Hull Cutters', type: 'stone', cost: 7, copies: 1, ops: [wall(-9, 'enemy')] },
+  { id: 'guild', name: 'Foundry Guild', type: 'stone', cost: 8, copies: 1, ops: [gen('stone', 2)] },
+  { id: 'landslide', name: 'Iron Hail', type: 'stone', cost: 10, copies: 1, ops: [gen('stone', -1, 'enemy'), wall(-6, 'enemy')] },
+  { id: 'greatwall', name: 'Ironclad Hull', type: 'stone', cost: 12, copies: 1, ops: [wall(15)] },
+  { id: 'spire', name: 'Great Envelope', type: 'stone', cost: 15, copies: 1, ops: [tower(13)] },
+  { id: 'bastion', name: 'Dreadnought Refit', type: 'stone', cost: 18, copies: 1, ops: [wall(12), tower(8)] },
 
-  // ── Mana: magic ──────────────────────────────────────────────
-  { id: 'rune', name: 'Quick Rune', type: 'mana', cost: 1, copies: 3, ops: [tower(1), again] },
-  { id: 'spark', name: 'Spark', type: 'mana', cost: 2, copies: 2, ops: [tower(-3, 'enemy')], flavor: 'Walls mean nothing to lightning.' },
-  { id: 'leyline', name: 'Ley Line', type: 'mana', cost: 3, copies: 2, ops: [gen('mana', 1)] },
-  { id: 'mend', name: 'Mend', type: 'mana', cost: 3, copies: 2, ops: [tower(4)] },
-  { id: 'siphon', name: 'Mana Siphon', type: 'mana', cost: 3, copies: 2, ops: [steal('mana', 6), again] },
+  // ── Aether (mana): magic ──────────────────────────────────────────────
+  { id: 'rune', name: 'Updraft', type: 'mana', cost: 1, copies: 3, ops: [tower(1), again] },
+  { id: 'spark', name: 'Static Spark', type: 'mana', cost: 2, copies: 2, ops: [tower(-3, 'enemy')], flavor: 'Armor means nothing to lightning.' },
+  { id: 'leyline', name: 'Aether Tap', type: 'mana', cost: 3, copies: 2, ops: [gen('mana', 1)] },
+  { id: 'mend', name: 'Buoyancy Charm', type: 'mana', cost: 3, copies: 2, ops: [tower(4)] },
+  { id: 'siphon', name: 'Aether Siphon', type: 'mana', cost: 3, copies: 2, ops: [steal('mana', 6), again] },
   { id: 'transmute', name: 'Transmute', type: 'mana', cost: 4, copies: 2, ops: [res('stone', 6), res('steel', 6)] },
-  { id: 'bolt', name: 'Arcane Bolt', type: 'mana', cost: 6, copies: 2, ops: [tower(-6, 'enemy')] },
-  { id: 'rust', name: 'Curse of Rust', type: 'mana', cost: 7, copies: 1, ops: [gen('steel', -1, 'enemy'), res('steel', -5, 'enemy')] },
-  { id: 'conclave', name: 'Conclave', type: 'mana', cost: 8, copies: 1, ops: [gen('mana', 2)] },
-  { id: 'quake', name: 'Earthquake Hex', type: 'mana', cost: 9, copies: 1, ops: [gen('stone', -1, 'enemy'), tower(-5, 'enemy')] },
-  { id: 'storm', name: 'Lightning Storm', type: 'mana', cost: 13, copies: 1, ops: [tower(-11, 'enemy')] },
-  { id: 'citadel', name: 'Sky Citadel', type: 'mana', cost: 16, copies: 1, ops: [tower(15)] },
+  { id: 'bolt', name: 'Aether Bolt', type: 'mana', cost: 6, copies: 2, ops: [tower(-6, 'enemy')] },
+  { id: 'rust', name: 'Damp Powder', type: 'mana', cost: 7, copies: 1, ops: [gen('steel', -1, 'enemy'), res('steel', -5, 'enemy')] },
+  { id: 'conclave', name: 'Aether Conclave', type: 'mana', cost: 8, copies: 1, ops: [gen('mana', 2)] },
+  { id: 'quake', name: 'Leaden Hex', type: 'mana', cost: 9, copies: 1, ops: [gen('stone', -1, 'enemy'), tower(-5, 'enemy')] },
+  { id: 'storm', name: 'Thunderhead', type: 'mana', cost: 13, copies: 1, ops: [tower(-11, 'enemy')] },
+  { id: 'citadel', name: 'Skyward Surge', type: 'mana', cost: 16, copies: 1, ops: [tower(15)] },
 
-  // ── Steel: war ───────────────────────────────────────────────
-  { id: 'drums', name: 'War Drums', type: 'steel', cost: 1, copies: 3, ops: [dmg(2), again] },
-  { id: 'skirmish', name: 'Skirmishers', type: 'steel', cost: 2, copies: 2, ops: [dmg(4)] },
-  { id: 'recruiter', name: 'Recruiter', type: 'steel', cost: 3, copies: 2, ops: [gen('steel', 1)] },
-  { id: 'archers', name: 'Archers', type: 'steel', cost: 4, copies: 2, ops: [dmg(6)] },
-  { id: 'raiders', name: 'Raiders', type: 'steel', cost: 5, copies: 2, ops: [dmg(4), steal('stone', 4)] },
-  { id: 'warband', name: 'Warband', type: 'steel', cost: 6, copies: 2, ops: [dmg(9)] },
-  { id: 'ram', name: 'Battering Ram', type: 'steel', cost: 7, copies: 1, ops: [wall(-14, 'enemy')] },
-  { id: 'mercs', name: 'Mercenary Camp', type: 'steel', cost: 8, copies: 1, ops: [gen('steel', 2)] },
+  // ── Powder (steel): guns ───────────────────────────────────────────────
+  { id: 'drums', name: 'Swivel Guns', type: 'steel', cost: 1, copies: 3, ops: [dmg(2), again] },
+  { id: 'skirmish', name: 'Musket Volley', type: 'steel', cost: 2, copies: 2, ops: [dmg(4)] },
+  { id: 'recruiter', name: 'Powder Works', type: 'steel', cost: 3, copies: 2, ops: [gen('steel', 1)] },
+  { id: 'archers', name: 'Deck Cannons', type: 'steel', cost: 4, copies: 2, ops: [dmg(6)] },
+  { id: 'raiders', name: 'Boarding Party', type: 'steel', cost: 5, copies: 2, ops: [dmg(4), steal('stone', 4)] },
+  { id: 'warband', name: 'Broadside', type: 'steel', cost: 6, copies: 2, ops: [dmg(9)] },
+  { id: 'ram', name: 'Ramming Prow', type: 'steel', cost: 7, copies: 1, ops: [wall(-14, 'enemy')] },
+  { id: 'mercs', name: 'Privateer Contract', type: 'steel', cost: 8, copies: 1, ops: [gen('steel', 2)] },
   { id: 'saboteurs', name: 'Saboteurs', type: 'steel', cost: 8, copies: 1, ops: [gen('mana', -1, 'enemy'), dmg(5)] },
-  { id: 'assassin', name: 'Assassin', type: 'steel', cost: 10, copies: 1, ops: [tower(-9, 'enemy')] },
-  { id: 'siege', name: 'Siege Engine', type: 'steel', cost: 12, copies: 1, ops: [dmg(17)] },
-  { id: 'dragon', name: 'Dragon Rider', type: 'steel', cost: 18, copies: 1, ops: [dmg(26)] },
+  { id: 'assassin', name: 'Sharpshooter', type: 'steel', cost: 10, copies: 1, ops: [tower(-9, 'enemy')] },
+  { id: 'siege', name: 'Siege Mortar', type: 'steel', cost: 12, copies: 1, ops: [dmg(17)] },
+  { id: 'dragon', name: 'Leviathan Gun', type: 'steel', cost: 18, copies: 1, ops: [dmg(26)] },
 
-  // ── Buildings: stay in play, act every turn ──────────────────
-  { id: 'b-lodge', name: "Masons' Lodge", type: 'stone', cost: 6, copies: 1, ops: [build('lodge')], flavor: 'The walls grow while you sleep.' },
-  { id: 'b-market', name: 'Market Square', type: 'stone', cost: 9, copies: 1, ops: [build('market')] },
-  { id: 'b-shrine', name: 'Hilltop Shrine', type: 'mana', cost: 7, copies: 1, ops: [build('shrine')] },
-  { id: 'b-beacon', name: 'Arcane Beacon', type: 'mana', cost: 10, copies: 1, ops: [build('beacon')] },
-  { id: 'b-catapult', name: 'Catapult', type: 'steel', cost: 7, copies: 1, ops: [build('catapult')] },
-  { id: 'b-ballista', name: 'Ballista Tower', type: 'steel', cost: 12, copies: 1, ops: [build('ballista')] },
-  { id: 'sappers', name: "Sappers' Charge", type: 'steel', cost: 5, copies: 2, ops: [demolish, dmg(3)], flavor: 'Bring it all down.' },
+  // ── Modules (buildings): stay aboard, act every turn ──────────────────
+  { id: 'b-lodge', name: 'Repair Crew', type: 'stone', cost: 6, copies: 1, ops: [build('lodge')], flavor: 'The plating grows while you sleep.' },
+  { id: 'b-market', name: 'Trade Hold', type: 'stone', cost: 9, copies: 1, ops: [build('market')] },
+  { id: 'b-shrine', name: 'Lift Engine', type: 'mana', cost: 7, copies: 1, ops: [build('shrine')] },
+  { id: 'b-beacon', name: 'Storm Lantern', type: 'mana', cost: 10, copies: 1, ops: [build('beacon')] },
+  { id: 'b-catapult', name: 'Mortar Deck', type: 'steel', cost: 7, copies: 1, ops: [build('catapult')] },
+  { id: 'b-ballista', name: 'Gun Turret', type: 'steel', cost: 12, copies: 1, ops: [build('ballista')] },
+  { id: 'sappers', name: 'Demolition Charge', type: 'steel', cost: 5, copies: 2, ops: [demolish, dmg(3)], flavor: 'Bring it all down.' },
   { id: 'dispel', name: 'Dispel', type: 'mana', cost: 4, copies: 1, ops: [demolish, again] },
 
   // ── Choices, combos, wards ───────────────────────────────────
-  { id: 'scaffold', name: 'Scaffolding', type: 'stone', cost: 3, copies: 2, ops: [choose([wall(5)], [tower(2), again])], flavor: 'Up or out?' },
-  { id: 'bulwark', name: 'Bulwark', type: 'stone', cost: 6, copies: 1, ops: [ward(7), wall(3)] },
-  { id: 'renovate', name: 'Renovation', type: 'stone', cost: 8, copies: 1, ops: [tower(4), when('behind', tower(5))], flavor: 'Rebuild bigger.' },
-  { id: 'glyph', name: 'Warding Glyph', type: 'mana', cost: 3, copies: 2, ops: [ward(5), again] },
+  { id: 'scaffold', name: 'Rigging', type: 'stone', cost: 3, copies: 2, ops: [choose([wall(5)], [tower(2), again])], flavor: 'Up or out?' },
+  { id: 'bulwark', name: 'Bulkhead', type: 'stone', cost: 6, copies: 1, ops: [ward(7), wall(3)] },
+  { id: 'renovate', name: 'Emergency Refit', type: 'stone', cost: 8, copies: 1, ops: [tower(4), when('behind', tower(5))], flavor: 'Rebuild bigger.' },
+  { id: 'glyph', name: 'Warding Sigil', type: 'mana', cost: 3, copies: 2, ops: [ward(5), again] },
   { id: 'echo', name: 'Echo', type: 'mana', cost: 2, copies: 2, ops: [tower(1), when('combo', tower(-4, 'enemy'))], flavor: 'Magic answers magic.' },
   { id: 'pact', name: 'Twin Pact', type: 'mana', cost: 5, copies: 2, ops: [choose([tower(-5, 'enemy')], [tower(6)])] },
-  { id: 'blitz', name: 'Blitz', type: 'steel', cost: 3, copies: 2, ops: [dmg(3), when('combo', dmg(4))] },
-  { id: 'flank', name: 'Flanking Strike', type: 'steel', cost: 5, copies: 2, ops: [dmg(5), when('foeNoWall', dmg(5))], flavor: 'Go around.' },
-  { id: 'pillage', name: 'Pillage', type: 'steel', cost: 6, copies: 1, ops: [choose([steal('stone', 7)], [steal('mana', 7)], [dmg(7)])] },
-  { id: 'b-obelisk', name: 'Ward Obelisk', type: 'mana', cost: 8, copies: 1, ops: [build('obelisk')] },
-  { id: 'b-den', name: "Thieves' Den", type: 'steel', cost: 9, copies: 1, ops: [build('den')] },
+  { id: 'blitz', name: 'Strafing Run', type: 'steel', cost: 3, copies: 2, ops: [dmg(3), when('combo', dmg(4))] },
+  { id: 'flank', name: 'Flanking Pass', type: 'steel', cost: 5, copies: 2, ops: [dmg(5), when('foeNoWall', dmg(5))], flavor: 'Go around.' },
+  { id: 'pillage', name: 'Plunder', type: 'steel', cost: 6, copies: 1, ops: [choose([steal('stone', 7)], [steal('mana', 7)], [dmg(7)])] },
+  { id: 'b-obelisk', name: 'Aether Lens', type: 'mana', cost: 8, copies: 1, ops: [build('obelisk')] },
+  { id: 'b-den', name: "Smugglers' Hold", type: 'steel', cost: 9, copies: 1, ops: [build('den')] },
 
-  // ── Hex (unlockable): burns and curses ───────────────────────
+  // ── Hex (unlockable): burns and junk ───────────────────────
   { id: 'hexfire', name: 'Hexfire', type: 'mana', cost: 4, copies: 2, ops: [burn(2, 3)], flavor: 'It never quite goes out.' },
-  { id: 'plague', name: 'Wasting Plague', type: 'mana', cost: 9, copies: 1, ops: [burn(3, 4), gen('stone', -1, 'enemy')] },
-  { id: 'firearrows', name: 'Fire Arrows', type: 'steel', cost: 4, copies: 2, ops: [dmg(3), burn(1, 3)] },
-  { id: 'rubblecart', name: 'Rubble Cart', type: 'stone', cost: 4, copies: 2, ops: [wall(-3, 'enemy'), curse(2)] },
-  { id: 'marauders', name: 'Marauders', type: 'steel', cost: 7, copies: 1, ops: [dmg(6), curse(2)] },
+  { id: 'plague', name: 'Corroding Fog', type: 'mana', cost: 9, copies: 1, ops: [burn(3, 4), gen('stone', -1, 'enemy')] },
+  { id: 'firearrows', name: 'Fire Shot', type: 'steel', cost: 4, copies: 2, ops: [dmg(3), burn(1, 3)] },
+  { id: 'rubblecart', name: 'Junk Barge', type: 'stone', cost: 4, copies: 2, ops: [wall(-3, 'enemy'), curse(2)] },
+  { id: 'marauders', name: 'Raiders', type: 'steel', cost: 7, copies: 1, ops: [dmg(6), curse(2)] },
 
   // ── Junk ─────────────────────────────────────────────────────
   {
-    id: 'rubble', name: 'Rubble', type: 'stone', cost: 0, copies: 0, ops: [], curse: true, exhaust: true,
-    text: ['Does nothing', 'Leaves your deck when played'], flavor: 'Someone dumped this in your keep.',
+    id: 'rubble', name: 'Junk', type: 'stone', cost: 0, copies: 0, ops: [], curse: true, exhaust: true,
+    text: ['Does nothing', 'Leaves your deck when played'], flavor: 'Someone dumped this in your hold.',
   },
 ];
 
 export const HEX_CARDS = ['hexfire', 'plague', 'firearrows', 'rubblecart', 'marauders'];
 
 export const BUILDINGS: BuildingDef[] = [
-  { id: 'lodge', name: "Masons' Lodge", icon: '🧱', ops: [wall(2)], worth: 14 },
-  { id: 'market', name: 'Market Square', icon: '🏪', ops: [res('stone', 1), res('mana', 1), res('steel', 1)], worth: 16 },
-  { id: 'shrine', name: 'Hilltop Shrine', icon: '⛩️', ops: [tower(1)], worth: 16 },
-  { id: 'beacon', name: 'Arcane Beacon', icon: '🗼', ops: [tower(-1, 'enemy')], worth: 20 },
-  { id: 'catapult', name: 'Catapult', icon: '☄️', ops: [dmg(2)], worth: 18 },
-  { id: 'ballista', name: 'Ballista Tower', icon: '🏹', ops: [dmg(3), wall(1)], worth: 26 },
-  { id: 'obelisk', name: 'Ward Obelisk', icon: '🗿', ops: [ward(2)], worth: 15 },
-  { id: 'den', name: "Thieves' Den", icon: '🗝️', ops: [steal('stone', 1), steal('mana', 1), steal('steel', 1)], worth: 22 },
+  { id: 'lodge', name: 'Repair Crew', icon: '🔧', ops: [wall(2)], worth: 14 },
+  { id: 'market', name: 'Trade Hold', icon: '📦', ops: [res('stone', 1), res('mana', 1), res('steel', 1)], worth: 16 },
+  { id: 'shrine', name: 'Lift Engine', icon: '🎈', ops: [tower(1)], worth: 16 },
+  { id: 'beacon', name: 'Storm Lantern', icon: '🏮', ops: [tower(-1, 'enemy')], worth: 20 },
+  { id: 'catapult', name: 'Mortar Deck', icon: '☄️', ops: [dmg(2)], worth: 18 },
+  { id: 'ballista', name: 'Gun Turret', icon: '🎯', ops: [dmg(3), wall(1)], worth: 26 },
+  { id: 'obelisk', name: 'Aether Lens', icon: '🔮', ops: [ward(2)], worth: 15 },
+  { id: 'den', name: "Smugglers' Hold", icon: '🗝️', ops: [steal('stone', 1), steal('mana', 1), steal('steel', 1)], worth: 22 },
 ];
 
 const BASE_CARDS: Record<string, CardDef> = Object.fromEntries(CARDS.map((c) => [c.id, c]));
@@ -213,8 +213,8 @@ export const STARTER_DECK: string[] = [
   'drums', 'drums', 'skirmish', 'recruiter', 'archers', 'warband',
 ];
 
-const RES_LABEL: Record<Resource, string> = { stone: 'Stone', mana: 'Mana', steel: 'Steel' };
-const GEN_LABEL: Record<Resource, string> = { stone: 'Quarry', mana: 'Sanctum', steel: 'Barracks' };
+const RES_LABEL: Record<Resource, string> = { stone: 'Iron', mana: 'Aether', steel: 'Powder' };
+const GEN_LABEL: Record<Resource, string> = { stone: 'Foundry', mana: 'Aether Well', steel: 'Powder Mill' };
 
 const signed = (n: number) => (n > 0 ? `+${n}` : `${n}`);
 
@@ -224,9 +224,9 @@ export function describeOp(o: Op): string {
     case 'damage':
       return `${o.amt} damage`;
     case 'tower':
-      return o.target === 'self' ? `${signed(o.amt)} Tower` : `Enemy Tower ${signed(o.amt)}`;
+      return o.target === 'self' ? `${signed(o.amt)} Altitude` : `Enemy Altitude ${signed(o.amt)}`;
     case 'wall':
-      return o.target === 'self' ? `${signed(o.amt)} Wall` : `Enemy Wall ${signed(o.amt)}`;
+      return o.target === 'self' ? `${signed(o.amt)} Armor` : `Enemy Armor ${signed(o.amt)}`;
     case 'res':
       return o.target === 'self' ? `${signed(o.amt)} ${RES_LABEL[o.res]}` : `Enemy ${RES_LABEL[o.res]} ${signed(o.amt)}`;
     case 'gen':
@@ -238,7 +238,7 @@ export function describeOp(o: Op): string {
       return `${b.icon} Each turn: ${b.ops.map(describeOp).join(', ')}`;
     }
     case 'demolish':
-      return 'Destroy an enemy building';
+      return 'Destroy an enemy module';
     case 'again':
       return 'Play again';
     case 'burn':
@@ -246,7 +246,7 @@ export function describeOp(o: Op): string {
     case 'ward':
       return `+${o.amt} Ward`;
     case 'curse':
-      return `${o.count} Rubble into enemy deck`;
+      return `${o.count} Junk into enemy deck`;
     case 'if':
       return `${COND_LABEL[o.cond]}: ${o.then.map(describeOp).join(', ')}`;
     case 'choose':
@@ -255,8 +255,8 @@ export function describeOp(o: Op): string {
 }
 
 export const COND_LABEL: Record<Condition, string> = {
-  foeNoWall: 'If enemy has no Wall',
-  behind: 'If your Tower is lower',
+  foeNoWall: 'If enemy has no Armor',
+  behind: 'If you are lower',
   combo: 'Combo',
 };
 
