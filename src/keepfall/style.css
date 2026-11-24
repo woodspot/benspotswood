@@ -221,8 +221,12 @@ button { font: inherit; cursor: pointer; }
 .t-stone .card-art { background: radial-gradient(60px 18px at 30% 78%, rgba(255,255,255,.2), transparent 70%), linear-gradient(#4a3a2a, #a07a50); }
 .t-mana .card-art { background: radial-gradient(60px 18px at 70% 75%, rgba(255,255,255,.2), transparent 70%), linear-gradient(#2a2563, #7a6cf0); }
 .t-steel .card-art { background: radial-gradient(60px 18px at 30% 78%, rgba(255,255,255,.18), transparent 70%), linear-gradient(#4c1d22, #c8584f); }
-.card-art span { font-size: 2rem; filter: drop-shadow(0 3px 3px rgba(0,0,0,.45)); }
-.card-art img { width: 100%; height: 100%; object-fit: cover; }
+.gi {
+  display: block; width: 40px; height: 40px; background: linear-gradient(#fff, #e9e1cf);
+  -webkit-mask: var(--icon) center / contain no-repeat; mask: var(--icon) center / contain no-repeat;
+  filter: drop-shadow(0 2px 2px rgba(0,0,0,.5));
+}
+.offer .gi { width: 48px; height: 48px; }
 .card-name { font-weight: 700; margin: 6px 0 4px; font-size: .95rem; line-height: 1.15; }
 .card-text { list-style: none; padding: 0; margin: 0; font-size: .82rem; line-height: 1.35; }
 .card-text li::before { content: '• '; color: var(--accent); }
@@ -466,8 +470,7 @@ details.rules summary { font-weight: 600; padding: 8px 0; color: var(--dim); }
   .hand .card-art, .played-slot .card-art {
     position: absolute; right: -4px; bottom: -6px; height: auto; margin: 0; background: none; box-shadow: none; opacity: .28; pointer-events: none;
   }
-  .hand .card-art span, .played-slot .card-art span { font-size: 2.6rem; }
-  .hand .card-art.img, .played-slot .card-art.img { inset: 0; opacity: .25; }
+  .hand .gi, .played-slot .gi { width: 52px; height: 52px; }
   .card-name, .card-text, .card-head { position: relative; }
   .played-slot .card { width: 80px; height: 108px; padding: 4px 5px; }
   .played-slot .card-name { font-size: .68rem; margin: 2px 0; }
@@ -492,12 +495,14 @@ details.rules summary { font-weight: 600; padding: 8px 0; color: var(--dim); }
   .card.r-rare::before, .card.r-uncommon::before { right: 5px; bottom: 3px; font-size: .62rem; }
   .card.discarded::after { font-size: .6rem; }
 
-  /* Docked over the hand so the whole battlefield (and its +/− badges) stays in view */
-  .action-sheet {
-    position: fixed; left: 6px; right: 6px; top: auto; bottom: calc(6px + env(safe-area-inset-bottom)); width: auto; transform: none;
-    padding: 9px 10px; animation-name: sheetUp; z-index: 30;
-  }
-  @keyframes sheetUp { from { transform: translateY(24px); opacity: 0; } }
+  /* Compact, at the foot of the battlefield: the hand stays free so a second tap on the card plays it */
+  .action-sheet { width: 96%; top: auto; bottom: 4px; padding: 7px 9px; border-radius: 12px; }
+  .action-sheet .sheet-text { display: none; }
+  .sheet-head b { font-size: .95rem; }
+  .sheet-opts { gap: 4px; margin: 6px 0; }
+  .opt { padding: 6px 8px; font-size: .82rem; }
+  .sheet-help { font-size: .68rem; margin: 4px 0 6px; }
+  .sheet-actions .primary { padding: 8px 12px; font-size: .95rem; }
   .log { left: 8px; right: 8px; width: auto; top: 48px; }
   .toast { min-width: 0; width: 86vw; padding: 12px 16px; }
 
@@ -510,7 +515,7 @@ details.rules summary { font-weight: 600; padding: 8px 0; color: var(--dim); }
   .faction ul { font-size: .72rem; padding-left: 14px; }
   .offer .card { width: 108px; height: 184px; }
   .offer .card-art, .deck-grid .card-art { height: 34px; }
-  .offer .card-art span, .deck-grid .card-art span { font-size: 1.4rem; }
+  .offer .gi, .deck-grid .gi { width: 26px; height: 26px; }
   .offer .card .card-text { font-size: .68rem; }
   .offer { gap: 6px; }
   .camp-options { grid-template-columns: 1fr; }
@@ -538,6 +543,6 @@ details.rules summary { font-weight: 600; padding: 8px 0; color: var(--dim); }
   .hand { min-height: 0; }
   .card { height: 150px; }
   .hand .card-art { height: 28px; margin-top: 3px; }
-  .hand .card-art span { font-size: 1.3rem; }
+  .hand .gi { width: 22px; height: 22px; }
   .flavor { display: none; }
 }

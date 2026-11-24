@@ -1,3 +1,4 @@
+import { ICON_CREDIT } from './art';
 import type { Difficulty } from './ai';
 import { abandonBattle, getState, initBattleChrome, startBattle } from './battle';
 import {
@@ -112,6 +113,7 @@ const HOW_TO = `
     <p>Every ${rules.eventEvery} turns the <b>weather</b> changes the rules for both sides.</p>
     <p><b>Keywords.</b> 💠 <b>Ward</b> blocks enemy damage, spells and burns before your Armor. 🔥 <b>Burn</b> takes Altitude at the start of the enemy's turns, ignoring Armor. ⚡ <b>Combo</b> triggers if you already played a card this turn. <b>Choose</b> cards let you pick one effect. 🗑️ <b>Junk</b> does nothing and leaves the deck when played.</p>
     <p><b>On a phone</b>, tap a card to see what it would do (the +/− badges), then tap Play. Tap any icon for details.</p>
+    <p class="dim small credit">${ICON_CREDIT}</p>
   </details>`;
 
 function siegePicker(): string {
