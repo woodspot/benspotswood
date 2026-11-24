@@ -62,6 +62,16 @@ export const sfx = {
   boop(): void {
     tone(330, 0.04, 0.22, 'sine', 0.18);
   },
+  /** A card turning over. */
+  flip(): void {
+    tone(660, 0, 0.08, 'triangle', 0.12);
+    tone(880, 0.05, 0.08, 'triangle', 0.1);
+  },
+  /** A pair found: two bright notes. */
+  match(): void {
+    tone(784, 0.05, 0.25, 'triangle', 0.22);
+    tone(1175, 0.17, 0.35, 'triangle', 0.22);
+  },
   /** The big celebration. */
   fanfare(): void {
     [523, 659, 784, 659, 784, 1047].forEach((f, i) => tone(f, i * 0.13, 0.32, 'triangle', 0.24));
@@ -81,11 +91,11 @@ if ('speechSynthesis' in window) {
   speechSynthesis.addEventListener?.('voiceschanged', chooseVoice);
 }
 
-let voiceOn = localStorage.getItem('balloons.voice') !== 'off';
+let voiceOn = (localStorage.getItem('kids.voice') ?? localStorage.getItem('balloons.voice')) !== 'off';
 export const isVoiceOn = () => voiceOn;
 export function setVoiceOn(on: boolean): void {
   voiceOn = on;
-  localStorage.setItem('balloons.voice', on ? 'on' : 'off');
+  localStorage.setItem('kids.voice', on ? 'on' : 'off');
   if (!on && 'speechSynthesis' in window) speechSynthesis.cancel();
 }
 
@@ -99,4 +109,16 @@ export function say(text: string): void {
   u.pitch = 1;
   u.volume = 0.8;
   speechSynthesis.speak(u);
+}
+
+/** The "Voice on / Voice off" button on a start screen. */
+export function bindVoiceButton(btn: HTMLElement): void {
+  const show = () => (btn.textContent = voiceOn ? '🔊 Voice on' : '🔇 Voice off');
+  show();
+  btn.addEventListener('click', () => {
+    setVoiceOn(!voiceOn);
+    show();
+    unlock();
+    if (voiceOn) say('Hello!');
+  });
 }

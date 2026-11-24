@@ -1,6 +1,8 @@
 // Balloon Pop: a tapping game for toddlers. Balloons float up; a voice asks for a colour,
 // a shape or a number of pops. Every tap pops something, and nothing ever goes wrong.
-import { isVoiceOn, setVoiceOn, sfx, say, unlock } from './audio';
+import { bindVoiceButton, sfx, say, unlock } from '../kids/audio';
+import { burst, CONFETTI, party } from '../kids/fx';
+import { holdToExit, keepAwake, lockGestures } from '../kids/hold';
 import {
   COLOR_HEX, newSession, nextBalloon, nextPrompt, pop, praiseFor, promptFor,
   type Mode, type Session, type ShapeId, type Spec, type Target,
@@ -68,7 +70,6 @@ let lastTouch = 0;
 let lastFrame = 0;
 let rightAnswers = 0;
 let reminded = false;
-let wakeLock: { release(): Promise<void> } | null = null;
 
 const stage = () => $('stage');
 const size = () => {
@@ -129,25 +130,6 @@ function remove(b: Balloon): void {
 
 // ── Popping ────────────────────────────────────────────────────
 
-function burst(x: number, y: number, colors: string[], n: number, spread: number): void {
-  for (let i = 0; i < n; i++) {
-    const p = document.createElement('i');
-    p.className = 'bit';
-    const a = (Math.PI * 2 * i) / n + rng() * 0.5;
-    const d = spread * (0.6 + rng() * 0.6);
-    p.style.left = `${x}px`;
-    p.style.top = `${y}px`;
-    p.style.background = colors[i % colors.length];
-    p.style.setProperty('--dx', `${Math.cos(a) * d}px`);
-    p.style.setProperty('--dy', `${Math.sin(a) * d}px`);
-    p.style.setProperty('--r', `${Math.round(rng() * 360)}deg`);
-    stage().appendChild(p);
-    setTimeout(() => p.remove(), 900);
-  }
-}
-
-const CONFETTI = ['#ec4038', '#3a7ff0', '#f7cf2d', '#3fbf5a', '#f68b28', '#9b5de5', '#f477b6', '#ffffff'];
-
 function bigText(x: number, y: number, text: string): void {
   const el = document.createElement('div');
   el.className = 'big-pop';
@@ -171,15 +153,15 @@ function onPop(b: Balloon): void {
   if (res.kind === 'right' && res.done) reminded = false;
 
   if (res.kind === 'free') {
-    burst(cx, cy, [color, '#fff'], 14, 90);
+    burst(stage(), cx, cy, [color, '#fff'], 14, 90);
     if (session.correct % 3 === 0) setTimeout(sfx.yay, 60);
     if (session.correct % 15 === 0) celebrate();
   } else if (res.kind === 'other') {
-    burst(cx, cy, [color], 10, 60);
+    burst(stage(), cx, cy, [color], 10, 60);
     setTimeout(sfx.boop, 80);
     nudgeTarget(); // no talking: the picture at the top wiggles to show what to look for
   } else {
-    burst(cx, cy, [color, ...CONFETTI], 22, 140);
+    burst(stage(), cx, cy, [color, ...CONFETTI], 22, 140);
     if (res.count) {
       bigText(cx, cy, String(res.count));
       sfx.count(res.count);
@@ -212,16 +194,11 @@ function celebrate(): void {
   paused = true;
   sfx.fanfare();
   say('Hooray!');
-  const el = $('party');
-  el.hidden = false;
-  const { w, h } = size();
-  for (let k = 0; k < 4; k++) setTimeout(() => burst(w * (0.2 + 0.2 * k), h * (0.25 + 0.15 * (k % 2)), CONFETTI, 26, 160), k * 300);
-  setTimeout(() => {
-    el.hidden = true;
+  party($('party'), stage(), () => {
     paused = false;
     renderTarget(session.target);
     if (session.target.kind !== 'any') say(promptFor(session.target));
-  }, 3200);
+  });
 }
 
 // ── The target chip: shows what to find, tap it to hear it again ──
@@ -257,18 +234,14 @@ function start(mode: Mode): void {
   lastFrame = 0;
   lastTouch = performance.now();
   requestAnimationFrame(frame);
-  void (navigator as Navigator & { wakeLock?: { request(t: 'screen'): Promise<{ release(): Promise<void> }> } }).wakeLock
-    ?.request('screen')
-    .then((l) => (wakeLock = l))
-    .catch(() => {});
+  keepAwake(true);
 }
 
 function stop(): void {
   running = false;
   for (const b of [...balloons]) remove(b);
   speechSynthesis?.cancel();
-  void wakeLock?.release();
-  wakeLock = null;
+  keepAwake(false);
   $('game').hidden = true;
   $('party').hidden = true;
   $('menu').hidden = false;
@@ -285,65 +258,16 @@ function buildMenu(): void {
   $('modes').innerHTML = (Object.keys(pics) as Mode[])
     .map((m) => `<button class="mode m-${m}" data-mode="${m}"><span class="pic">${pics[m]}</span><span class="lbl">${label[m]}</span></button>`)
     .join('');
-  const voiceBtn = $('voice');
-  const showVoice = () => (voiceBtn.textContent = isVoiceOn() ? '🔊 Voice on' : '🔇 Voice off');
-  showVoice();
-  voiceBtn.addEventListener('click', () => {
-    setVoiceOn(!isVoiceOn());
-    showVoice();
-    unlock();
-    if (isVoiceOn()) say('Hello!');
-  });
+  bindVoiceButton($('voice'));
   $('modes').addEventListener('click', (e) => {
     const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-mode]');
     if (btn) start(btn.dataset.mode as Mode);
   });
 }
 
-/** Grown-ups only: hold the home button for 1.5 seconds to leave the game. */
-function holdToExit(): void {
-  const btn = $('home');
-  let timer = 0;
-  let t0 = 0;
-  let raf = 0;
-  let hintTimer = 0;
-  const reset = () => {
-    // Let go too early: leave the "Keep holding…" hint up for a moment so grown-ups learn the trick.
-    if (btn.classList.contains('holding')) {
-      btn.classList.add('hinting');
-      clearTimeout(hintTimer);
-      hintTimer = window.setTimeout(() => btn.classList.remove('hinting'), 1800);
-    }
-    btn.classList.remove('holding');
-    clearTimeout(timer);
-    cancelAnimationFrame(raf);
-    btn.style.setProperty('--p', '0');
-  };
-  const tick = () => {
-    btn.style.setProperty('--p', String(Math.min(1, (performance.now() - t0) / 1500)));
-    raf = requestAnimationFrame(tick);
-  };
-  // iOS turns a long press into its own gesture and cancels the touch; stop that so holding works.
-  btn.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false });
-  btn.addEventListener('pointerdown', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    btn.setPointerCapture?.(e.pointerId);
-    btn.classList.add('holding');
-    t0 = performance.now();
-    tick();
-    timer = window.setTimeout(() => {
-      btn.classList.remove('holding');
-      reset();
-      stop();
-    }, 1500);
-  });
-  for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) btn.addEventListener(ev, reset);
-}
-
 function init(): void {
   buildMenu();
-  holdToExit();
+  holdToExit($('home'), stop);
   // Pop on touch-down: quicker and more forgiving than a full click for small fingers.
   stage().addEventListener('pointerdown', (e) => {
     if (paused) return;
@@ -355,8 +279,7 @@ function init(): void {
     lastTouch = performance.now();
     say(promptFor(session.target));
   });
-  // Stop pinch-zoom, double-tap zoom and the long-press menu on iOS.
-  for (const ev of ['gesturestart', 'dblclick', 'contextmenu']) document.addEventListener(ev, (e) => e.preventDefault());
+  lockGestures();
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) speechSynthesis?.cancel();
     else if (running) lastFrame = 0;
