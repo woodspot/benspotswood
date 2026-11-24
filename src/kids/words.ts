@@ -6,6 +6,7 @@ export type Lang = 'en' | 'es';
 export interface Part {
   text: string;
   lang: Lang;
+  pitch?: number; // characters can sound higher or lower (1 = normal)
 }
 export const en = (text: string): Part => ({ text, lang: 'en' });
 export const es = (text: string): Part => ({ text, lang: 'es' });
@@ -35,5 +36,9 @@ export const NUMBER_WORDS: { en: string; es: string }[] = [
   { en: 'three', es: 'tres' },
   { en: 'four', es: 'cuatro' },
   { en: 'five', es: 'cinco' },
+  { en: 'six', es: 'seis' },
+  { en: 'seven', es: 'siete' },
+  { en: 'eight', es: 'ocho' },
+  { en: 'nine', es: 'nueve' },
 ];
 

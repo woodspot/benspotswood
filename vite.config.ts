@@ -11,6 +11,7 @@ export default defineConfig({
         keepfall: resolve(import.meta.dirname, 'keepfall/index.html'),
         balloons: resolve(import.meta.dirname, 'balloons/index.html'),
         match: resolve(import.meta.dirname, 'match/index.html'),
+        phone: resolve(import.meta.dirname, 'phone/index.html'),
       },
     },
   },

@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#5aa9f0" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="Toy Phone" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Toy Phone</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/src/phone/style.css" />
+</head>
+<body>
+  <div class="sky" aria-hidden="true"><i></i><i></i><i></i></div>
+
+  <section id="menu" class="menu">
+    <a class="back" href="/">← Games</a>
+    <h1>Toy <span>Phone</span></h1>
+    <button id="play" class="play-btn"><span class="big-phone">📱</span><span class="lbl">Play!</span></button>
+    <div class="settings"><div class="lang" id="lang"></div><button id="voice" class="voice-btn"></button></div>
+    <button id="edit" class="edit-btn">✏️ Family names &amp; photos</button>
+    <p class="tip">Grown-ups: press and hold the 🏠 button to come back here.</p>
+  </section>
+
+  <section id="editor" class="menu editor" hidden>
+    <h2>Family contacts</h2>
+    <p class="tip">Add a photo and the name your little one uses. Photos stay on this device.</p>
+    <div id="family" class="family"></div>
+    <button id="edit-done" class="play-btn small"><span class="lbl">Done</span></button>
+    <input id="photo-input" type="file" accept="image/*" hidden />
+  </section>
+
+  <section id="game" hidden>
+    <div class="phone">
+      <div class="screen" id="screen-keypad">
+        <div class="display" id="display"><span class="placeholder">Press the numbers!</span></div>
+        <div class="keypad" id="keypad"></div>
+        <div class="call-row">
+          <span></span>
+          <button class="round call" id="dial" aria-label="Call">📞</button>
+          <button class="round del" id="del" aria-label="Delete">⌫</button>
+        </div>
+      </div>
+      <div class="screen" id="screen-contacts" hidden>
+        <h2 class="contacts-title">Who shall we call?</h2>
+        <div class="contacts" id="contacts"></div>
+      </div>
+      <nav class="tabs">
+        <button class="tab sel" data-tab="keypad"><span>🔢</span>Keypad</button>
+        <button class="tab" data-tab="contacts"><span>👥</span>Contacts</button>
+      </nav>
+    </div>
+
+    <div class="call-screen" id="call" hidden>
+      <div class="caller">
+        <div class="avatar huge" id="call-avatar"></div>
+        <div class="call-name" id="call-name"></div>
+        <div class="call-status" id="call-status"></div>
+      </div>
+      <div class="call-actions">
+        <button class="round fun" id="wave" aria-label="Wave">👋</button>
+        <button class="round hang" id="hang" aria-label="Hang up">📞</button>
+        <button class="round fun" id="kiss" aria-label="Kiss">😘</button>
+      </div>
+    </div>
+
+    <div class="call-screen incoming" id="incoming" hidden>
+      <div class="caller">
+        <div class="avatar huge ringing" id="in-avatar"></div>
+        <div class="call-name" id="in-name"></div>
+        <div class="call-status">is calling…</div>
+      </div>
+      <div class="call-actions">
+        <button class="round hang" id="decline" aria-label="Decline">📞</button>
+        <button class="round call answer" id="answer" aria-label="Answer">📞</button>
+      </div>
+    </div>
+
+    <button id="home" class="home" aria-label="Hold to go home">🏠<span class="hold-hint">Keep holding…</span></button>
+  </section>
+
+  <script type="module" src="/src/phone/main.ts"></script>
+</body>
+</html>

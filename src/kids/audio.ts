@@ -10,7 +10,8 @@ export function unlock(): void {
   if ('speechSynthesis' in window) speechSynthesis.speak(new SpeechSynthesisUtterance(''));
 }
 
-function tone(freq: number, start: number, dur: number, type: OscillatorType = 'sine', vol = 0.25): void {
+/** One note: frequency (Hz), start delay and length (seconds). */
+export function tone(freq: number, start: number, dur: number, type: OscillatorType = 'sine', vol = 0.25): void {
   if (!ctx) return;
   const t = ctx.currentTime + start;
   const o = ctx.createOscillator();
@@ -121,7 +122,7 @@ export function say(line: string | Part[]): void {
     const v = voices[p.lang];
     if (v) u.voice = v;
     u.rate = p.lang === 'es' ? 0.85 : 0.95; // learning words a touch slower
-    u.pitch = 1;
+    u.pitch = p.pitch ?? 1;
     u.volume = 0.8;
     speechSynthesis.speak(u);
   }
