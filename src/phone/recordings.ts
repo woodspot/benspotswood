@@ -102,6 +102,9 @@ export async function startRecording(): Promise<Blob> {
     rec.onstop = () => {
       clearTimeout(limit);
       recorder = null;
+      // Let go of the microphone straight away: while it's open, iPhone plays sound through the
+      // quiet earpiece and can pause other audio, so playback right after recording was silent.
+      releaseMic();
       resolve(new Blob(chunks, { type: rec.mimeType || mime || 'audio/webm' }));
     };
     rec.onerror = () => reject(new Error('recording failed'));

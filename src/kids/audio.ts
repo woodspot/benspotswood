@@ -6,11 +6,41 @@
 
 let ctx: AudioContext | null = null;
 
+// Recordings play through one shared <audio> player. iPhone/iPad only allow an audio player to
+// start from a tap, but once a player has played during a tap it can play again later (e.g. when
+// Grandma "answers" a few seconds after the call button). unlock() does that first play.
+let player: HTMLAudioElement | null = null;
+let silentUrl = '';
+
+/** A tiny silent WAV, used to unlock the audio player. */
+function silence(): string {
+  if (silentUrl) return silentUrl;
+  const n = 800; // 0.1 s at 8 kHz
+  const buf = new ArrayBuffer(44 + n * 2);
+  const v = new DataView(buf);
+  const w = (o: number, t: string) => [...t].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
+  w(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); w(8, 'WAVEfmt '); v.setUint32(16, 16, true);
+  v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, 8000, true); v.setUint32(28, 16000, true);
+  v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, 'data'); v.setUint32(40, n * 2, true);
+  silentUrl = URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
+  return silentUrl;
+}
+
 export function unlock(): void {
   ctx ??= new AudioContext();
-  if (ctx.state === 'suspended') void ctx.resume();
+  if (ctx.state !== 'running') void ctx.resume().catch(() => {});
+  player ??= new Audio();
+  if (player.paused) {
+    player.src = silence();
+    void player.play().catch(() => {});
+  }
   // iOS only lets speech start from a tap; an empty utterance opens the door.
   if ('speechSynthesis' in window) speechSynthesis.speak(new SpeechSynthesisUtterance(''));
+}
+
+/** iOS can pause the sound engine (e.g. after the microphone was used); wake it before playing. */
+async function wake(): Promise<void> {
+  if (ctx && ctx.state !== 'running') await ctx.resume().catch(() => {});
 }
 
 /** One note: frequency (Hz), start delay and length (seconds). */
@@ -154,10 +184,13 @@ export function stopSpeech(): void {
     /* already stopped */
   }
   source = null;
+  // Leave the silent unlock clip alone: cutting it off can leave the player locked on iPhone.
+  if (player && !player.paused && player.src !== silentUrl) player.pause();
   if ('speechSynthesis' in window) speechSynthesis.cancel();
 }
 
-function playBuffer(buf: AudioBuffer, my: number, rate = 1): Promise<void> {
+async function playBuffer(buf: AudioBuffer, my: number, rate = 1): Promise<void> {
+  await wake();
   return new Promise((resolve) => {
     if (!ctx || my !== seq) return resolve();
     const src = ctx.createBufferSource();
@@ -220,13 +253,47 @@ export async function say(line: string | Part[]): Promise<void> {
 export async function playBlob(blob: Blob): Promise<void> {
   stopSpeech();
   const my = seq;
-  if (!ctx) return;
+  await wake();
+  // The audio player handles every format the microphone records in (iPhone records MP4/AAC,
+  // which Web Audio often can't decode), so try it first.
+  if (player && (await playOnPlayer(player, blob, my))) return;
+  if (!ctx || my !== seq) return;
   try {
     const buf = await ctx.decodeAudioData(await blob.arrayBuffer());
     await playBuffer(buf, my);
   } catch {
     /* unreadable recording: stay quiet */
   }
+}
+
+/** Play a recording on the shared player. Resolves true when it played (to the end or until cut off). */
+function playOnPlayer(el: HTMLAudioElement, blob: Blob, my: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(blob);
+    let done = false;
+    const finish = (ok: boolean) => {
+      if (done) return;
+      done = true;
+      el.removeEventListener('ended', onEnd);
+      el.removeEventListener('pause', onEnd);
+      el.removeEventListener('error', onEnd);
+      URL.revokeObjectURL(url);
+      resolve(ok);
+    };
+    const onEnd = () => finish(true);
+    el.src = url;
+    el.volume = 1;
+    el.play().then(
+      () => {
+        // Listen only once it's really playing: swapping the source can fire a stray "pause".
+        el.addEventListener('ended', onEnd);
+        el.addEventListener('pause', onEnd); // stopSpeech() pauses it
+        el.addEventListener('error', onEnd);
+        if (my !== seq) el.pause();
+      },
+      () => finish(false),
+    );
+  });
 }
 
 /** Does this line have a pre-recorded clip for every part? (Used by tests and the voice report.) */
