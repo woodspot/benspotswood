@@ -85,7 +85,7 @@ export const CONTACTS: Contact[] = [
       more: { en: ['Have you been good? Ho ho ho!', 'My reindeer say hello!'], es: ['¿Te portaste bien? ¡Jo jo jo!', '¡Mis renos te saludan!'] },
       kiss: { en: ['Ho ho! A kiss for you!'], es: ['¡Jo jo! ¡Un besito!'] },
       wave: { en: ['Ho ho ho! I see you!'], es: ['¡Jo jo jo! ¡Te veo!'] },
-      bye: { en: ['Merry bye bye! Ho ho ho!'], es: ['¡Adiós! ¡Jo jo jo!'] },
+      bye: { en: ['Ho ho ho! Bye bye now!', 'Goodbye, little one! Ho ho ho!'], es: ['¡Adiós! ¡Jo jo jo!'] },
     },
   },
 ];
