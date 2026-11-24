@@ -82,3 +82,8 @@ h1 span { color: #ffd34d; }
 .lang { display: flex; border-radius: 99px; background: rgba(255,255,255,.2); box-shadow: inset 0 0 0 2px rgba(255,255,255,.6); padding: 3px; }
 .lang-btn { border: 0; border-radius: 99px; padding: 8px 14px; font-weight: 800; font-size: .95rem; background: transparent; }
 .lang-btn.sel { background: #fff; color: #2a6fc4; }
+
+/* Games that stay upright (see orient.ts): turn #app against the device's rotation. */
+html.turn-90 #app, html.turn-270 #app { inset: auto; top: 0; left: 0; width: 100vh; height: 100vw; width: 100dvh; height: 100dvw; transform-origin: top left; }
+html.turn-90 #app { transform: rotate(-90deg) translateX(-100%); }
+html.turn-270 #app { transform: rotate(90deg) translateY(-100%); }

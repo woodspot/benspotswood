@@ -4,6 +4,7 @@ import { bindVoiceButton, en, es, say, sfx, tone, unlock } from '../kids/audio';
 import { burst } from '../kids/fx';
 import { holdToExit, keepAwake, lockGestures } from '../kids/hold';
 import { bindLangButtons, getLang } from '../kids/lang';
+import { stayPortrait } from '../kids/orient';
 import {
   CONTACTS, CONTACT_MAP, displayName, DTMF, KEYS, keyWord, lineFor, whoAnswers,
   type Contact, type Custom, type Key, type LineKind,
@@ -189,16 +190,28 @@ function hangUp(): void {
   }, 1500);
 }
 
+/** Where the caller's picture sits inside the call screen, in that screen's own coordinates. */
+function avatarBox(): { x: number; y: number; w: number; h: number } {
+  const av = $('call-avatar');
+  let x = 0;
+  let y = 0;
+  for (let el: HTMLElement | null = av; el && el.id !== 'call'; el = el.offsetParent as HTMLElement | null) {
+    x += el.offsetLeft;
+    y += el.offsetTop;
+  }
+  return { x, y, w: av.offsetWidth, h: av.offsetHeight };
+}
+
 function floatEmoji(emoji: string, n: number): void {
-  const r = $('call-avatar').getBoundingClientRect();
+  const r = avatarBox();
   for (let i = 0; i < n; i++) {
     const el = document.createElement('div');
     el.className = 'float-emoji';
     el.textContent = emoji;
-    el.style.left = `${r.left + r.width * (0.2 + Math.random() * 0.6)}px`;
-    el.style.top = `${r.top + r.height * 0.5}px`;
+    el.style.left = `${r.x + r.w * (0.2 + Math.random() * 0.6)}px`;
+    el.style.top = `${r.y + r.h * 0.5}px`;
     el.style.animationDelay = `${i * 120}ms`;
-    document.body.appendChild(el);
+    $('call').appendChild(el);
     setTimeout(() => el.remove(), 2000 + i * 120);
   }
 }
@@ -372,6 +385,7 @@ function init(): void {
   bindEditor();
   holdToExit($('home'), stop);
   lockGestures();
+  stayPortrait();
   $('play').addEventListener('click', start);
 
   // Respond on touch-down: quicker and more forgiving than a full click for small fingers.
@@ -415,8 +429,8 @@ function init(): void {
   $('kiss').addEventListener('pointerdown', () => {
     if (!connected) return;
     floatEmoji('❤️', 6);
-    const r = $('call-avatar').getBoundingClientRect();
-    burst(document.body, r.left + r.width / 2, r.top + r.height / 2, ['#f477b6', '#ec4038', '#fff'], 12, 110);
+    const r = avatarBox();
+    burst($('call'), r.x + r.w / 2, r.y + r.h / 2, ['#f477b6', '#ec4038', '#fff'], 12, 110);
     speak('kiss');
     scheduleChat();
   });
