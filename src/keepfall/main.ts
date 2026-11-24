@@ -1,3 +1,4 @@
+import { isLinked, lastSynced, link, sync, syncOnOpen, unlink } from '../kids/sync';
 import { ICON_CREDIT } from './art';
 import type { Difficulty } from './ai';
 import { abandonBattle, getState, initBattleChrome, startBattle } from './battle';
@@ -22,9 +23,75 @@ type FactionChoice = FactionId | 'random';
 
 const store = {
   get: (k: string) => localStorage.getItem(`keepfall.${k}`),
-  set: (k: string, v: string) => localStorage.setItem(`keepfall.${k}`, v),
-  del: (k: string) => localStorage.removeItem(`keepfall.${k}`),
+  set: (k: string, v: string) => {
+    localStorage.setItem(`keepfall.${k}`, v);
+    syncSoon();
+  },
+  del: (k: string) => {
+    localStorage.removeItem(`keepfall.${k}`);
+    syncSoon();
+  },
 };
+
+// ── Family sync: progress follows you between devices (same family code as Toy Phone) ──
+
+let syncTimer = 0;
+let syncBusy = false;
+let syncMsg = '';
+
+/** In a menu (not mid-battle): safe to reload so the game picks up the family's newer progress. */
+const inMenu = () => document.getElementById('overlay')?.classList.contains('show') ?? false;
+
+function afterSync(changedHere: boolean): void {
+  if (changedHere && inMenu()) location.reload();
+}
+
+/** Save progress to the family a moment after it changes. */
+function syncSoon(): void {
+  if (!isLinked()) return;
+  clearTimeout(syncTimer);
+  syncTimer = window.setTimeout(() => {
+    sync().then((r) => afterSync(r.changedHere)).catch(() => {});
+  }, 2500);
+}
+
+function syncCard(): string {
+  const msg = syncMsg ? `<p class="sync-msg">${esc(syncMsg)}</p>` : '';
+  if (!isLinked())
+    return `<div class="sync-card">
+      <b>☁️ Save progress across devices</b>
+      <p class="dim small">Enter your family code (the same one as Toy Phone) to keep your Renown, unlocks and campaign in step on every device.</p>
+      <input id="sync-code" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="Family code (6+ characters)">
+      <div class="sync-btns">
+        <button class="diff-btn" data-act="sync-join" ${syncBusy ? 'disabled' : ''}>🔗 Join my family</button>
+        <button class="diff-btn" data-act="sync-create" ${syncBusy ? 'disabled' : ''}>✨ Start a family</button>
+      </div>${msg}</div>`;
+  const when = lastSynced();
+  const ago = !when ? 'not yet' : Date.now() - when < 60000 ? 'just now' : `${Math.round((Date.now() - when) / 60000)} min ago`;
+  return `<div class="sync-card">
+    <b>☁️ Progress syncs with your family</b>
+    <p class="dim small">Last synced ${ago}. Play on any device with the family code and carry on where you left off.</p>
+    <div class="sync-btns">
+      <button class="diff-btn" data-act="sync-now" ${syncBusy ? 'disabled' : ''}>${syncBusy ? '⏳ Syncing…' : '🔄 Sync now'}</button>
+      <button class="diff-btn" data-act="sync-unlink">Unlink this device</button>
+    </div>${msg}</div>`;
+}
+
+async function runSync(what: () => Promise<{ changedHere: boolean }>, ok: string): Promise<void> {
+  syncBusy = true;
+  syncMsg = '';
+  showMenu();
+  try {
+    const r = await what();
+    syncMsg = ok;
+    syncBusy = false;
+    if (r.changedHere) return location.reload();
+  } catch (e) {
+    syncMsg = (e as Error).message;
+  }
+  syncBusy = false;
+  showMenu();
+}
 
 let mode: Mode = (store.get('mode') as Mode) ?? 'quick';
 let difficulty: Difficulty = (store.get('difficulty') as Difficulty) ?? 'normal';
@@ -149,7 +216,8 @@ function progressBody(): string {
     <h3 class="pick">Storm levels</h3>
     <p class="dim small">Win a campaign to unlock the next level. Each adds to the ones before.</p>
     <ol class="siege-list">${levels}</ol>
-    <p class="record">Campaigns ${meta.runs} · won ${meta.wins} · best floor ${meta.bestFloor || '–'}</p>`;
+    <p class="record">Campaigns ${meta.runs} · won ${meta.wins} · best floor ${meta.bestFloor || '–'}</p>
+    ${syncCard()}`;
 }
 
 // ── Main menu ──────────────────────────────────────────────────
@@ -232,6 +300,24 @@ function showMenu(): void {
       unlock();
       sfx.click();
       route(loadRun()!);
+    },
+    'sync-join': () => {
+      const code = (document.getElementById('sync-code') as HTMLInputElement).value;
+      if (code.trim().length < 6) return void ((syncMsg = 'The family code needs at least 6 characters.'), showMenu());
+      if (!confirm('Switch this device to your family’s saved progress?')) return;
+      void runSync(() => link(code, 'join'), 'Joined! Your family’s progress is on this device.');
+    },
+    'sync-create': () => {
+      const code = (document.getElementById('sync-code') as HTMLInputElement).value;
+      if (code.trim().length < 6) return void ((syncMsg = 'The family code needs at least 6 characters.'), showMenu());
+      void runSync(() => link(code, 'create'), 'Family started! Use the same code on your other devices.');
+    },
+    'sync-now': () => void runSync(() => sync(), 'All synced.'),
+    'sync-unlink': () => {
+      if (!confirm('Stop syncing progress on this device? It keeps its progress as it is now.')) return;
+      unlink();
+      syncMsg = '';
+      showMenu();
     },
     'abandon-run': () => {
       if (!confirm('Abandon this campaign? Progress will be lost.')) return;
@@ -627,3 +713,9 @@ $('btn-menu').addEventListener('click', () => {
 initBattleChrome();
 initInfoPops();
 showMenu();
+// Pick up progress made on other devices (reloads once if there was any, while still in the menu).
+syncOnOpen(undefined, () => afterSync(true));
+// Leaving the page (switching apps): save straight away rather than waiting.
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && isLinked()) void sync().catch(() => {});
+});
