@@ -17,12 +17,12 @@ export interface Part {
  */
 export type VoiceKey =
   | 'female' | 'male' | 'grandma' | 'grandpa' | 'mommy' | 'daddy' | 'santa' | 'critter' | 'bigcritter'
-  | 'heroF' | 'heroM' | 'villain' | 'queen' | 'narrator';
+  | 'heroF' | 'heroM' | 'villain' | 'queen' | 'narrator' | 'letters';
 
 export const VOICE_GENDER: Record<VoiceKey, 'female' | 'male'> = {
   female: 'female', male: 'male', grandma: 'female', grandpa: 'male', mommy: 'female', daddy: 'male',
   santa: 'male', critter: 'female', bigcritter: 'male',
-  heroF: 'female', heroM: 'male', villain: 'male', queen: 'female', narrator: 'male',
+  heroF: 'female', heroM: 'male', villain: 'male', queen: 'female', narrator: 'male', letters: 'female',
 };
 
 /** How a pre-recorded clip is looked up: language, voice and exact words. */

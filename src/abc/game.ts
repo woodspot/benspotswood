@@ -7,7 +7,7 @@ import { en, es, type Lang, type Part } from '../kids/words';
 
 export interface Letter {
   ch: string; // the capital letter
-  name: string; // how it's said aloud (English: the letter itself, which the voices read correctly)
+  name: string; // how it's said aloud (English: the letter itself, except W, spelled out so it can't be misread)
   word: string; // a word with the letter, usually first
   emoji: string;
 }
@@ -21,7 +21,7 @@ export const LETTERS: Record<Lang, Letter[]> = {
     L('I', 'I', 'ice cream', '🍦'), L('J', 'J', 'juice', '🧃'), L('K', 'K', 'key', '🔑'), L('L', 'L', 'lion', '🦁'),
     L('M', 'M', 'moon', '🌙'), L('N', 'N', 'nose', '👃'), L('O', 'O', 'octopus', '🐙'), L('P', 'P', 'pig', '🐷'),
     L('Q', 'Q', 'queen', '👸'), L('R', 'R', 'rabbit', '🐰'), L('S', 'S', 'sun', '☀️'), L('T', 'T', 'train', '🚂'),
-    L('U', 'U', 'umbrella', '☂️'), L('V', 'V', 'violin', '🎻'), L('W', 'W', 'whale', '🐳'), L('X', 'X', 'box', '📦'),
+    L('U', 'U', 'umbrella', '☂️'), L('V', 'V', 'violin', '🎻'), L('W', 'double-you', 'whale', '🐳'), L('X', 'X', 'box', '📦'),
     L('Y', 'Y', 'yo-yo', '🪀'), L('Z', 'Z', 'zebra', '🦓'),
   ],
   // Letter names are spelled out so the Spanish voice says "be", not "b" or the English name.
@@ -52,8 +52,11 @@ function shuffle<T>(list: readonly T[], rng: Rng): T[] {
 
 // ── Speech ─────────────────────────────────────────────────────
 
-/** The letter's name: "B!" or "¡Be!" */
-export const letterPart = (l: Letter, lang: Lang): Part => (lang === 'es' ? es(`¡${cap(l.name)}!`) : en(`${l.name}!`));
+/** The letter's name: "B" or "¡Be!", in the letters voice, which says names, never letter sounds. */
+export const letterPart = (l: Letter, lang: Lang): Part => ({
+  ...(lang === 'es' ? es(`¡${cap(l.name)}!`) : en(cap(l.name))),
+  voice: 'letters',
+});
 
 /** Its word: "Ball!" or "¡Ballena!" */
 export const wordPart = (l: Letter, lang: Lang): Part => (lang === 'es' ? es(`¡${cap(l.word)}!`) : en(`${cap(l.word)}!`));

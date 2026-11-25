@@ -30,6 +30,14 @@ const VOICES = {
   santa: { voice: 'onyx', style: `Santa Claus: big, deep, booming and jolly, with hearty laughs. ${TODDLER}` },
   critter: { voice: 'fable', style: `A silly, squeaky little cartoon animal, very playful and expressive. ${TODDLER}` },
   bigcritter: { voice: 'ash', style: `A big, goofy, friendly cartoon animal with a deeper silly voice. ${TODDLER}` },
+  // ABC: the same friendly voice, told it is reading a letter's name, never the sound the letter makes.
+  letters: {
+    voice: 'coral',
+    style:
+      'You are teaching the alphabet. The text is the NAME of one letter of the alphabet: say it exactly the way the ' +
+      'letter is named when reciting the alphabet (in English, A is "ay", E is "ee", I is "eye", W is "double-you"), ' +
+      `never the sound the letter makes, and say nothing else. ${TODDLER}`,
+  },
   // Sky Armada (for grown-ups): adventure voices, not toddler voices.
   heroF: { voice: 'sage', style: 'A bold, confident airship captain shouting an order in the middle of a sky battle. Energetic and heroic.' },
   heroM: { voice: 'ballad', style: 'A brave, gruff airship captain shouting an order in the middle of a sky battle. Energetic and heroic.' },
