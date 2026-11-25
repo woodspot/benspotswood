@@ -26,6 +26,9 @@ export interface BattleConfig {
   captain?: CaptainSetup; // the human's captain (campaigns)
   eventEvery?: number; // weather changes this often (default 6 turns)
   taunt?: Part[]; // spoken at the start (natural voice clips only)
+  start?: GameState; // begin from this battle instead of a new one (duels pick up where they left off)
+  /** A duel against a person: no AI; your moves are sent with onMove, theirs arrive via playRemote. */
+  duel?: { onMove: (action: Action, after: GameState) => void };
 }
 
 /** Voice lines play only when a natural voice clip exists (no robotic device speech in battles). */
@@ -185,7 +188,7 @@ function renderHands(): void {
     hint.textContent = touchLayout()
       ? 'Your turn: tap a card to see what it does'
       : 'Your turn: click a card to play it. Hover to preview. Too expensive? Clicking discards it.';
-  else hint.textContent = `${state.players[AI].name} is thinking…`;
+  else hint.textContent = config?.duel ? `Waiting for ${state.players[AI].name} to play…` : `${state.players[AI].name} is thinking…`;
 }
 
 /** The captain's power button: once per battle (twice at level 5), doesn't end your turn. */
@@ -659,6 +662,7 @@ async function apply(action: Action): Promise<void> {
   const gen = generation;
   const before = state;
   const after = step(state, action, rules, true);
+  if (config?.duel && before.current === HUMAN) config.duel.onMove(action, after);
   selected = null;
   busy = true;
   renderHands();
@@ -701,6 +705,11 @@ function act(action: Action, el?: HTMLElement): void {
 
 function maybeAiTurn(): void {
   if (state.winner !== null || state.current !== AI || !config) return;
+  if (config.duel) {
+    narrate({ turn: state.turn, player: AI, icon: '⏳', text: `Waiting for ${state.players[AI].name} to take their turn…` }, false);
+    void drainRemote();
+    return;
+  }
   busy = true;
   hideTip();
   renderHands();
@@ -715,6 +724,28 @@ function maybeAiTurn(): void {
   }, Math.round(650 * PACE[speed]));
 }
 
+// ── Duels: the other player's moves arrive from the server and are played back one by one ──
+const remote: Action[] = [];
+let draining = false;
+
+/** Play back a move the other player made (queued if something is still playing). */
+export function playRemote(action: Action): void {
+  remote.push(action);
+  drainRemote();
+}
+
+async function drainRemote(): Promise<void> {
+  if (draining) return;
+  draining = true;
+  const gen = generation;
+  while (remote.length && gen === generation && state.winner === null) {
+    if (busy || state.current !== AI) break;
+    hideTip();
+    await apply(remote.shift()!);
+  }
+  draining = false;
+}
+
 export function startBattle(cfg: BattleConfig, done: (s: GameState) => void): void {
   generation++;
   unlock();
@@ -724,14 +755,17 @@ export function startBattle(cfg: BattleConfig, done: (s: GameState) => void): vo
   onEnd = done;
   selected = null;
   lastTurnOwner = null;
-  state = newGame({
-    names: ['You', cfg.enemyName],
-    factions: cfg.factions,
-    decks: cfg.decks,
-    relics: cfg.relics,
-    rules,
-    captains: [cfg.captain, undefined],
-  });
+  remote.length = 0;
+  state = cfg.start
+    ? structuredClone(cfg.start)
+    : newGame({
+        names: ['You', cfg.enemyName],
+        factions: cfg.factions,
+        decks: cfg.decks,
+        relics: cfg.relics,
+        rules,
+        captains: [cfg.captain, undefined],
+      });
   $('goal-label').textContent = `⚓ High harbor · ${rules.winTower}`;
   busy = false;
   history = [];
@@ -740,8 +774,9 @@ export function startBattle(cfg: BattleConfig, done: (s: GameState) => void): vo
   renderLog();
   $('narration').className = 'narration';
   render();
-  setTimeout(() => maybeTip(), 1200);
-  const f = FACTION_MAP[cfg.factions[1]];
+  const tipGen = generation;
+  setTimeout(() => tipGen === generation && maybeTip(), 1200);
+  const f = FACTION_MAP[state.players[AI].faction];
   toast(
     `<div class="toast-icon">${f.icon}</div><b>vs ${esc(cfg.enemyName)}</b><span>${f.name}: ${f.perks.join(' · ')}</span>` +
       (cfg.intro ? `<span>${esc(cfg.intro)}</span>` : ''),
@@ -755,10 +790,12 @@ export function startBattle(cfg: BattleConfig, done: (s: GameState) => void): vo
 /** Stop the current battle (e.g. when leaving for a menu). */
 export function abandonBattle(): void {
   stopAmbience();
+  hideTip();
   generation++;
   busy = false;
   config = null;
   selected = null;
+  remote.length = 0;
 }
 
 export function getState(): GameState {

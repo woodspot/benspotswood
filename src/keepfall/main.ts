@@ -2,6 +2,7 @@ import { isLinked, lastSynced, link, sync, syncOnOpen, unlink } from '../kids/sy
 import { ICON_CREDIT } from './art';
 import type { Difficulty } from './ai';
 import { abandonBattle, getState, initBattleChrome, startBattle, voice } from './battle';
+import { duelHandlers, duelsBody, handleInviteLink, inDuel, initDuels, leaveDuel, refreshDuels, yourTurnCount } from './duelui';
 import { resetTips } from './tips';
 import {
   ACT_INFO, ACTS, applyDailyMods, BOSSES, battleSetup, buyItem, buyService, camp, canCamp, canChoose, canService, chooseNode,
@@ -24,7 +25,7 @@ import { DEFAULT_RULES, type Enchant, type GameState } from './types';
 import { $, bind, cardFace, esc, hideDialog, initInfoPops, relicChip, relicTile, showDialog, toast } from './ui';
 
 const rules = DEFAULT_RULES;
-type Mode = 'quick' | 'draft' | 'campaign' | 'shipyard' | 'progress';
+type Mode = 'quick' | 'draft' | 'campaign' | 'duels' | 'shipyard' | 'progress';
 type FactionChoice = FactionId | 'random';
 type ShipTab = 'yard' | 'captain' | 'content' | 'cosmetic';
 
@@ -391,8 +392,9 @@ function showMenu(): void {
   const run = loadRun();
   // A finished campaign whose results haven't been seen yet: show them (and award its Renown) first.
   if (mode === 'campaign' && run && (run.status === 'won' || run.status === 'lost')) return showRunEnd(run);
-  const tabs = (['quick', 'draft', 'campaign', 'shipyard', 'progress'] as Mode[])
-    .map((m) => `<button class="tab ${m === mode ? 'sel' : ''}" data-act="mode" data-m="${m}">${{ quick: '⚔️ Quick', draft: '🃏 Draft', campaign: '🗺️ Campaign', shipyard: '⚓ Shipyard', progress: '⭐ Progress' }[m]}</button>`)
+  const turns = yourTurnCount();
+  const tabs = (['quick', 'draft', 'campaign', 'duels', 'shipyard', 'progress'] as Mode[])
+    .map((m) => `<button class="tab ${m === mode ? 'sel' : ''}" data-act="mode" data-m="${m}">${{ quick: '⚔️ Quick', draft: '🃏 Draft', campaign: '🗺️ Campaign', duels: `🤝 Duels${turns ? ` <span class="badge">${turns}</span>` : ''}`, shipyard: '⚓ Shipyard', progress: '⭐ Progress' }[m]}</button>`)
     .join('');
 
   let body = '';
@@ -404,6 +406,8 @@ function showMenu(): void {
     body = `<p class="lead">Build your deck: ${DRAFT_PICKS} times, pick 1 of 3 cards to add to an ${STARTER_DECK.length}-card starter deck. The opponent drafts too.</p>
       ${factionPicker()}${difficultyPicker()}
       <button class="primary" data-act="start-draft">Start draft</button>`;
+  } else if (mode === 'duels') {
+    body = duelsBody();
   } else if (mode === 'shipyard') {
     body = shipyardBody();
   } else if (mode === 'progress') {
@@ -538,7 +542,10 @@ function showMenu(): void {
       toast('<b>💡 Tips are back on</b><span>They’ll appear in your next battle.</span>');
     },
     ...syncHandlers,
+    ...duelHandlers,
   });
+  // Duel list and the "your turn" badge, fetched in the background.
+  void refreshDuels();
 }
 
 function startDaily(): void {
@@ -1127,7 +1134,13 @@ function battle(cfg: Parameters<typeof startBattle>[0], done: (s: GameState) => 
 }
 
 $('btn-menu').addEventListener('click', () => {
-  if (inBattle && getState().winner === null) {
+  if (inDuel()) {
+    // Duels are saved after every move: leave without asking.
+    leaveDuel();
+    abandonBattle();
+    inBattle = false;
+    mode = 'duels';
+  } else if (inBattle && getState().winner === null) {
     const campaignNote = mode === 'campaign' && loadRun()?.status === 'battle' ? ' Your campaign is saved; the battle will restart.' : '';
     if (!confirm(`Leave this battle?${campaignNote}`)) return;
     abandonBattle();
@@ -1138,7 +1151,12 @@ $('btn-menu').addEventListener('click', () => {
 
 initBattleChrome();
 initInfoPops();
+initDuels({ showMenu, battle });
 showMenu();
+// Opened from a duel invite link: accept it (or open it, if it's already ours).
+void handleInviteLink().then((opened) => {
+  if (opened) mode = 'duels';
+});
 // Pick up progress made on other devices (reloads once if there was any, while still in the menu).
 syncOnOpen(undefined, () => afterSync(true));
 // Leaving the page (switching apps): save straight away rather than waiting.
