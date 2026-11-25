@@ -26,7 +26,24 @@ function silence(): string {
   return silentUrl;
 }
 
+type SessionType = 'auto' | 'playback' | 'play-and-record';
+/**
+ * iPhone mutes web sound when the ring/silent switch is on silent. Safari 16.4+ lets a page say it
+ * plays media ("playback"), which keeps it audible like a video. Recording needs "play-and-record".
+ */
+export function setAudioSession(type: SessionType): void {
+  const s = (navigator as Navigator & { audioSession?: { type: SessionType } }).audioSession;
+  if (s && s.type !== type) {
+    try {
+      s.type = type;
+    } catch {
+      /* not supported */
+    }
+  }
+}
+
 export function unlock(): void {
+  setAudioSession('playback');
   ctx ??= new AudioContext();
   if (ctx.state !== 'running') void ctx.resume().catch(() => {});
   player ??= new Audio();
@@ -184,11 +201,26 @@ function playSample(name: string, vol = 0.8): boolean {
   return true;
 }
 
+// Voice clips play on the shared <audio> player, not Web Audio: on iPhone, Web Audio is silent
+// when the ring switch is on silent, but the player (like a video) still plays. Each clip is
+// fetched once and kept in memory, so it starts instantly.
+const clipFiles = new Map<string, Promise<Blob | null>>();
+function clipFor(url: string): Promise<Blob | null> {
+  let b = clipFiles.get(url);
+  if (!b) {
+    b = fetch(url)
+      .then((r) => (r.ok ? r.blob() : null))
+      .catch(() => null);
+    clipFiles.set(url, b);
+  }
+  return b;
+}
+
 /** Fetch clips ahead of time (e.g. the keypad numbers) so the first tap has no delay. */
 export function preload(parts: Part[]): void {
   for (const p of parts) {
     const url = clipUrl(p);
-    if (url) void bufferFor(url);
+    if (url) void clipFor(url);
   }
 }
 
@@ -260,13 +292,28 @@ export async function say(line: string | Part[]): Promise<void> {
   // Start fetching every clip at once so there are no gaps between parts.
   const pending = parts.map((p) => {
     const url = clipUrl(p);
-    return url ? bufferFor(url) : Promise.resolve(null);
+    return url ? clipFor(url) : Promise.resolve(null);
   });
   for (let i = 0; i < parts.length; i++) {
-    const buf = await pending[i];
+    const clip = await pending[i];
     if (my !== seq) return;
-    if (buf) await playBuffer(buf, my);
-    else await speakDevice(parts[i], my);
+    if (clip && (await playClip(clip, my))) continue;
+    if (my !== seq) return;
+    await speakDevice(parts[i], my);
+  }
+}
+
+/** Play a voice clip: on the audio player, or through Web Audio if the player won't start. */
+async function playClip(clip: Blob, my: number): Promise<boolean> {
+  await wake();
+  if (player && (await playOnPlayer(player, clip, my))) return true;
+  if (!ctx || my !== seq) return my !== seq;
+  try {
+    const buf = await ctx.decodeAudioData(await clip.arrayBuffer());
+    await playBuffer(buf, my);
+    return true;
+  } catch {
+    return false;
   }
 }
 

@@ -1,5 +1,6 @@
 // Family voice recordings for Toy Phone, kept in this device's IndexedDB (never uploaded).
 import type { LineKind } from './game';
+import { setAudioSession } from '../kids/audio';
 
 /** The lines a grown-up can record for one person. "Chat" has three so calls don't repeat. */
 export const SLOTS = ['hello', 'more1', 'more2', 'more3', 'kiss', 'wave', 'bye'] as const;
@@ -91,6 +92,7 @@ function pickMime(): string | undefined {
 
 /** Start recording; resolves with the recording when stopRecording() is called (or after 10 s). */
 export async function startRecording(): Promise<Blob> {
+  setAudioSession('play-and-record');
   stream ??= await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
   const mime = pickMime();
   const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
@@ -121,6 +123,7 @@ export function releaseMic(): void {
   stopRecording();
   stream?.getTracks().forEach((t) => t.stop());
   stream = null;
+  setAudioSession('playback');
 }
 
 // ── Raw access for backup and family sync ─────────────────────
