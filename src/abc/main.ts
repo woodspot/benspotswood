@@ -12,7 +12,7 @@ const $ = (id: string) => document.getElementById(id)!;
 const rng = Math.random;
 const PARTY_ABC = 8; // letters looked at
 const PARTY_FIND = 6; // right answers
-const CARD_MS = 3000;
+const CARD_MS = 3500;
 const IDLE_REMIND_MS = 25000;
 const COLORS = ['#ff6b6b', '#ff9f43', '#f7c531', '#4cc274', '#2fb5d9', '#5b8def', '#9b6cf0', '#e766b5'];
 
@@ -26,6 +26,8 @@ let cardTimer = 0;
 
 const stage = () => $('stage');
 const colorOf = (ch: string) => COLORS[LETTERS[getLang()].findIndex((l) => l.ch === ch) % COLORS.length];
+
+const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 function centerOf(el: Element): [number, number] {
   const r = el.getBoundingClientRect();
@@ -134,9 +136,11 @@ function answer(el: HTMLElement): void {
   sfx.match();
   const [x, y] = centerOf(el);
   burst(stage(), x, y, CONFETTI, 22, 130);
-  void say(meetParts(l, getLang()));
-  if (wins % PARTY_FIND === 0) setTimeout(() => celebrate(() => findRound()), 1500);
-  else setTimeout(() => findRound(), 2300);
+  // Let it finish saying "K is for key!" before the next letter (at least a moment to enjoy it,
+  // and never stuck waiting if the voice doesn't report back).
+  const spoken = say(meetParts(l, getLang()));
+  const next = wins % PARTY_FIND === 0 ? () => celebrate(() => findRound()) : () => findRound();
+  void Promise.race([Promise.all([spoken, wait(1500)]), wait(7000)]).then(() => setTimeout(next, 600));
 }
 
 // ── Screens ────────────────────────────────────────────────────

@@ -9,8 +9,18 @@ export interface Letter {
   ch: string; // the capital letter
   name: string; // how it's said aloud (English: the letter itself; Spanish: spelled out, like "be")
   word: string; // a word with the letter, usually first
-  emoji: string;
+  emoji: string; // or a small drawing (SVG) when there's no emoji
 }
+
+// There's no xylophone emoji (and the X-ray one is missing on older phones), so it's drawn.
+const BARS = ['#e84a4a', '#f39c34', '#f5cd2f', '#4cb963', '#3b8fe0', '#8e5ad6'];
+const XYLOPHONE =
+  '<svg class="drawn" viewBox="0 0 120 100" width="1.45em" height="1.2em" aria-label="xylophone">' +
+  '<path d="M6 24 L116 40 M6 86 L116 70" stroke="#8a5a2b" stroke-width="7" stroke-linecap="round"/>' +
+  BARS.map((c, i) => `<rect x="${10 + i * 18}" y="${16 + i * 4}" width="14" height="${78 - i * 8}" rx="4" fill="${c}"/>`).join('') +
+  '<circle cx="31" cy="36" r="3" fill="#fff" opacity=".7"/>' +
+  '<path d="M110 4 L80 30" stroke="#6b4423" stroke-width="5" stroke-linecap="round"/><circle cx="77" cy="33" r="8" fill="#e84a4a"/>' +
+  '</svg>';
 
 const L = (ch: string, name: string, word: string, emoji: string): Letter => ({ ch, name, word, emoji });
 
@@ -21,7 +31,7 @@ export const LETTERS: Record<Lang, Letter[]> = {
     L('I', 'I', 'ice cream', '🍦'), L('J', 'J', 'juice', '🧃'), L('K', 'K', 'key', '🔑'), L('L', 'L', 'lion', '🦁'),
     L('M', 'M', 'moon', '🌙'), L('N', 'N', 'nose', '👃'), L('O', 'O', 'octopus', '🐙'), L('P', 'P', 'pig', '🐷'),
     L('Q', 'Q', 'queen', '👸'), L('R', 'R', 'rabbit', '🐰'), L('S', 'S', 'sun', '☀️'), L('T', 'T', 'train', '🚂'),
-    L('U', 'U', 'umbrella', '☂️'), L('V', 'V', 'violin', '🎻'), L('W', 'W', 'whale', '🐳'), L('X', 'X', 'fox', '🦊'),
+    L('U', 'U', 'umbrella', '☂️'), L('V', 'V', 'violin', '🎻'), L('W', 'W', 'whale', '🐳'), L('X', 'X', 'xylophone', XYLOPHONE),
     L('Y', 'Y', 'yo-yo', '🪀'), L('Z', 'Z', 'zebra', '🦓'),
   ],
   // Letter names are spelled out so the Spanish voice says "be", not "b" or the English name.
@@ -32,7 +42,7 @@ export const LETTERS: Record<Lang, Letter[]> = {
     L('M', 'eme', 'manzana', '🍎'), L('N', 'ene', 'nube', '☁️'), L('Ñ', 'eñe', 'piña', '🍍'), L('O', 'o', 'oso', '🐻'),
     L('P', 'pe', 'perro', '🐶'), L('Q', 'cu', 'queso', '🧀'), L('R', 'erre', 'ratón', '🐭'), L('S', 'ese', 'sol', '☀️'),
     L('T', 'te', 'tortuga', '🐢'), L('U', 'u', 'uvas', '🍇'), L('V', 'uve', 'vaca', '🐮'), L('W', 'uve doble', 'kiwi', '🥝'),
-    L('X', 'equis', 'saxofón', '🎷'), L('Y', 'ye', 'yoyó', '🪀'), L('Z', 'zeta', 'zapato', '👟'),
+    L('X', 'equis', 'xilófono', XYLOPHONE), L('Y', 'ye', 'yoyó', '🪀'), L('Z', 'zeta', 'zapato', '👟'),
   ],
 };
 

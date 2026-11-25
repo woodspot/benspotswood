@@ -71,3 +71,4 @@ h1 b:nth-child(2) { animation-delay: .3s; } h1 b:nth-child(3) { animation-delay:
 }
 .ask[hidden] { display: none; }
 .ask .spk { font-size: .7em; }
+svg.drawn { vertical-align: middle; filter: drop-shadow(0 4px 4px rgba(0,0,0,.2)); }
