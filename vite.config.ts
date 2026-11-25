@@ -17,6 +17,7 @@ export default defineConfig({
         match: resolve(import.meta.dirname, 'match/index.html'),
         phone: resolve(import.meta.dirname, 'phone/index.html'),
         barnyard: resolve(import.meta.dirname, 'barnyard/index.html'),
+        abc: resolve(import.meta.dirname, 'abc/index.html'),
       },
     },
   },

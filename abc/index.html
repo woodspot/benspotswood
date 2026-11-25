@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#7b5cd6" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="ABC" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>ABC</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/src/abc/style.css" />
+</head>
+<body>
+  <div class="sky" aria-hidden="true"><i></i><i></i><i></i></div>
+
+  <section id="menu" class="menu">
+    <a class="back" href="/">← Games</a>
+    <h1><b class="c1">A</b><b class="c2">B</b><b class="c3">C</b></h1>
+    <div class="modes" id="modes">
+      <button class="mode m-abc" data-mode="abc">
+        <span class="pic"><span class="mini-tile t1">A</span><span class="mini-tile t2">B</span><span class="mini-tile t3">C</span></span>
+        <span class="lbl">ABC</span>
+      </button>
+      <button class="mode m-find" data-mode="find">
+        <span class="pic"><span class="mini-tile big">B</span><span class="glass">🔍</span></span>
+        <span class="lbl">Find it!</span>
+      </button>
+    </div>
+    <div class="settings"><div class="lang" id="lang"></div><button id="voice" class="voice-btn"></button></div>
+    <p class="tip">Grown-ups: press and hold the 🏠 button to come back here.</p>
+  </section>
+
+  <section id="game" hidden>
+    <div id="stage" class="stage"></div>
+    <button id="home" class="home" aria-label="Hold to go home">🏠<span class="hold-hint">Keep holding…</span></button>
+    <button id="ask" class="ask" aria-label="Hear it again" hidden></button>
+    <div id="card" class="card-wrap" hidden></div>
+    <div id="party" class="party" hidden><div class="big-star">⭐</div></div>
+  </section>
+
+  <script type="module" src="/src/abc/main.ts"></script>
+</body>
+</html>

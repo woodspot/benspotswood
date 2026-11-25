@@ -9,6 +9,7 @@ import { clipKey, en, es, type Lang, type Part } from '../kids/words';
 import { CAPTAINS } from '../keepfall/captains';
 import { ANIMALS, meetParts, questionParts } from '../barn/game';
 import { BOSSES } from '../keepfall/campaign';
+import { LETTERS, meetParts as letterParts, questionParts as findParts } from '../abc/game';
 
 const LANGS: Lang[] = ['en', 'es'];
 
@@ -71,10 +72,16 @@ function barnyard(): Part[] {
   return out;
 }
 
+function abc(): Part[] {
+  const out: Part[] = [en('Tap a letter!')];
+  for (const lang of LANGS) for (const l of LETTERS[lang]) out.push(...letterParts(l, lang), ...findParts(l, lang));
+  return out;
+}
+
 /** Every phrase, once each. */
 export function allPhrases(): Part[] {
   const seen = new Map<string, Part>();
-  for (const p of [...shared(), ...balloons(), ...match(), ...phone(), ...skyArmada(), ...barnyard()]) {
+  for (const p of [...shared(), ...balloons(), ...match(), ...phone(), ...skyArmada(), ...barnyard(), ...abc()]) {
     const key = clipKey(p);
     if (p.text && !seen.has(key)) seen.set(key, { text: p.text, lang: p.lang, voice: p.voice ?? 'female' });
   }
