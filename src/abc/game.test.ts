@@ -14,8 +14,7 @@ describe('abc', () => {
   });
 
   it('says the letter, then its word', () => {
-    expect(meetParts(letterOf('B', 'en'), 'en')).toEqual([{ text: 'B', lang: 'en', voice: 'letters' }, { text: 'Ball!', lang: 'en' }]);
-    expect(meetParts(letterOf('W', 'en'), 'en')[0].text).toBe('Double-you');
+    expect(meetParts(letterOf('B', 'en'), 'en')).toEqual([{ text: 'B is for ball!', lang: 'en' }]);
     expect(meetParts(letterOf('B', 'es'), 'es')).toEqual([{ text: '¡Be!', lang: 'es', voice: 'letters' }, { text: '¡Ballena!', lang: 'es' }]);
   });
 

@@ -7,7 +7,7 @@ import { en, es, type Lang, type Part } from '../kids/words';
 
 export interface Letter {
   ch: string; // the capital letter
-  name: string; // how it's said aloud (English: the letter itself, except W, spelled out so it can't be misread)
+  name: string; // how it's said aloud (English: the letter itself; Spanish: spelled out, like "be")
   word: string; // a word with the letter, usually first
   emoji: string;
 }
@@ -21,7 +21,7 @@ export const LETTERS: Record<Lang, Letter[]> = {
     L('I', 'I', 'ice cream', '🍦'), L('J', 'J', 'juice', '🧃'), L('K', 'K', 'key', '🔑'), L('L', 'L', 'lion', '🦁'),
     L('M', 'M', 'moon', '🌙'), L('N', 'N', 'nose', '👃'), L('O', 'O', 'octopus', '🐙'), L('P', 'P', 'pig', '🐷'),
     L('Q', 'Q', 'queen', '👸'), L('R', 'R', 'rabbit', '🐰'), L('S', 'S', 'sun', '☀️'), L('T', 'T', 'train', '🚂'),
-    L('U', 'U', 'umbrella', '☂️'), L('V', 'V', 'violin', '🎻'), L('W', 'double-you', 'whale', '🐳'), L('X', 'X', 'box', '📦'),
+    L('U', 'U', 'umbrella', '☂️'), L('V', 'V', 'violin', '🎻'), L('W', 'W', 'whale', '🐳'), L('X', 'X', 'fox', '🦊'),
     L('Y', 'Y', 'yo-yo', '🪀'), L('Z', 'Z', 'zebra', '🦓'),
   ],
   // Letter names are spelled out so the Spanish voice says "be", not "b" or the English name.
@@ -61,8 +61,13 @@ export const letterPart = (l: Letter, lang: Lang): Part => ({
 /** Its word: "Ball!" or "¡Ballena!" */
 export const wordPart = (l: Letter, lang: Lang): Part => (lang === 'es' ? es(`¡${cap(l.word)}!`) : en(`${cap(l.word)}!`));
 
-/** Meeting a letter: its name, then its word. */
-export const meetParts = (l: Letter, lang: Lang): Part[] => [letterPart(l, lang), wordPart(l, lang)];
+/**
+ * Meeting a letter. English: "K is for key!" in one sentence, because a letter said on its own is
+ * often read as its sound ("kuh") or garbled; inside a sentence the voice says its name. Spanish:
+ * the spelled-out name, then the word ("¡Ka! ¡Koala!").
+ */
+export const meetParts = (l: Letter, lang: Lang): Part[] =>
+  lang === 'es' ? [letterPart(l, lang), wordPart(l, lang)] : [en(`${l.ch} is for ${l.word}!`)];
 
 /** "Find the letter B!" / "Find the letter… be!" */
 export const questionParts = (l: Letter, lang: Lang): Part[] =>
