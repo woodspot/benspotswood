@@ -3,6 +3,8 @@ import { resolve } from 'node:path';
 
 export default defineConfig({
   base: '/',
+  // When this copy was built, shown by the voice check (?voicecheck) to confirm a device has the latest.
+  define: { __BUILD__: JSON.stringify(new Date().toISOString().slice(0, 16).replace('T', ' ')) },
   // Local development: family sync talks to `php -S 127.0.0.1:8099 -t public` (the live site runs the PHP itself).
   server: { proxy: { '/api': 'http://127.0.0.1:8099' } },
   build: {

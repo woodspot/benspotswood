@@ -156,11 +156,64 @@ export function setVoiceOn(on: boolean): void {
 
 // ── Pre-recorded clips ─────────────────────────────────────────
 
+// The list of clips. Always asked fresh from the server (never an old copy Safari kept), and
+// asked again if it failed, so new lines are heard as soon as they're published.
 let manifest: Record<string, string> = {};
-void fetch('/voice/manifest.json')
-  .then((r) => (r.ok ? r.json() : {}))
-  .then((m) => (manifest = m))
-  .catch(() => {});
+let manifestState = 'loading…';
+let manifestReady: Promise<void> = Promise.resolve();
+function loadManifest(): Promise<void> {
+  manifestReady = fetch('/voice/manifest.json', { cache: 'no-cache' })
+    .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+    .then((m: Record<string, string>) => {
+      manifest = m;
+      manifestState = `${Object.keys(m).length} clips`;
+    })
+    .catch((e: unknown) => {
+      manifestState = `failed (${e instanceof Error ? e.message : e})`;
+    })
+    .finally(showCheck);
+  return manifestReady;
+}
+void loadManifest();
+
+/** Wait (briefly) for the clip list, so the first words aren't spoken by the device voice. */
+async function manifestLoaded(): Promise<void> {
+  if (Object.keys(manifest).length) return;
+  if (manifestState.startsWith('failed')) void loadManifest();
+  await Promise.race([manifestReady, new Promise((r) => setTimeout(r, 3000))]);
+}
+
+// ── Voice check: open any toddler game with ?voicecheck to see what's working on this device ──
+declare const __BUILD__: string;
+const checking = typeof location !== 'undefined' && location.search.includes('voicecheck');
+const notes: string[] = [];
+function note(msg: string): void {
+  if (!checking) return;
+  notes.unshift(msg);
+  notes.length = Math.min(notes.length, 10);
+  showCheck();
+}
+function showCheck(): void {
+  if (!checking || typeof document === 'undefined' || !document.body) return;
+  let box = document.getElementById('voicecheck');
+  if (!box) {
+    box = document.createElement('pre');
+    box.id = 'voicecheck';
+    box.style.cssText =
+      'position:fixed;left:6px;right:6px;bottom:6px;z-index:99999;margin:0;padding:8px;background:#fff;color:#000;' +
+      'font:12px/1.35 ui-monospace,monospace;white-space:pre-wrap;border:2px solid #000;border-radius:8px;pointer-events:none;opacity:.92';
+    document.body.append(box);
+  }
+  const session = (navigator as Navigator & { audioSession?: { type: string } }).audioSession;
+  box.textContent = [
+    `Voice check · build ${typeof __BUILD__ === 'string' ? __BUILD__ : '?'}`,
+    `clip list: ${manifestState}`,
+    `sound engine: ${ctx?.state ?? 'not started'} · player: ${player ? 'ready' : 'not started'} · session: ${session?.type ?? 'n/a'}`,
+    `voice: ${voiceOn ? 'on' : 'off'}`,
+    ...notes,
+  ].join('\n');
+}
+if (checking && typeof document !== 'undefined') document.addEventListener('DOMContentLoaded', showCheck);
 
 const buffers = new Map<string, Promise<AudioBuffer | null>>();
 function bufferFor(url: string): Promise<AudioBuffer | null> {
@@ -209,8 +262,12 @@ function clipFor(url: string): Promise<Blob | null> {
   let b = clipFiles.get(url);
   if (!b) {
     b = fetch(url)
-      .then((r) => (r.ok ? r.blob() : null))
-      .catch(() => null);
+      .then((r) => (r.ok ? r.blob() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .catch((e: unknown) => {
+        note(`${url}: download ✗ ${e instanceof Error ? e.message : e}`);
+        clipFiles.delete(url); // try again next time
+        return null;
+      });
     clipFiles.set(url, b);
   }
   return b;
@@ -289,30 +346,40 @@ export async function say(line: string | Part[]): Promise<void> {
   if (!parts.length) return;
   stopSpeech();
   const my = seq;
+  await manifestLoaded();
+  if (my !== seq) return;
   // Start fetching every clip at once so there are no gaps between parts.
   const pending = parts.map((p) => {
     const url = clipUrl(p);
+    if (!url) note(`"${p.text}": no clip → device voice`);
     return url ? clipFor(url) : Promise.resolve(null);
   });
   for (let i = 0; i < parts.length; i++) {
     const clip = await pending[i];
     if (my !== seq) return;
-    if (clip && (await playClip(clip, my))) continue;
+    if (clip && (await playClip(clip, my, parts[i].text))) continue;
     if (my !== seq) return;
     await speakDevice(parts[i], my);
   }
 }
 
 /** Play a voice clip: on the audio player, or through Web Audio if the player won't start. */
-async function playClip(clip: Blob, my: number): Promise<boolean> {
+async function playClip(clip: Blob, my: number, text: string): Promise<boolean> {
   await wake();
-  if (player && (await playOnPlayer(player, clip, my))) return true;
-  if (!ctx || my !== seq) return my !== seq;
+  const why: string[] = [];
+  if (!player) why.push('no player');
+  else if (await playOnPlayer(player, clip, my, why)) return note(`"${text}": clip ✓`), true;
+  if (!ctx || my !== seq) {
+    if (my === seq) note(`"${text}": ${why.join(', ')}, no sound engine → device voice`);
+    return my !== seq;
+  }
   try {
     const buf = await ctx.decodeAudioData(await clip.arrayBuffer());
+    note(`"${text}": ${why.join(', ')}; Web Audio ✓ (${ctx.state})`);
     await playBuffer(buf, my);
     return true;
-  } catch {
+  } catch (e) {
+    note(`"${text}": ${why.join(', ')}; decode ✗ ${e instanceof Error ? e.name : e} → device voice`);
     return false;
   }
 }
@@ -335,7 +402,7 @@ export async function playBlob(blob: Blob): Promise<void> {
 }
 
 /** Play a recording on the shared player. Resolves true when it played (to the end or until cut off). */
-function playOnPlayer(el: HTMLAudioElement, blob: Blob, my: number): Promise<boolean> {
+function playOnPlayer(el: HTMLAudioElement, blob: Blob, my: number, why?: string[]): Promise<boolean> {
   return new Promise((resolve) => {
     const url = URL.createObjectURL(blob);
     let done = false;
@@ -359,7 +426,10 @@ function playOnPlayer(el: HTMLAudioElement, blob: Blob, my: number): Promise<boo
         el.addEventListener('error', onEnd);
         if (my !== seq) el.pause();
       },
-      () => finish(false),
+      (e: unknown) => {
+        why?.push(`player ✗ ${e instanceof Error ? e.name : e}`);
+        finish(false);
+      },
     );
   });
 }
