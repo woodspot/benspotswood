@@ -18,6 +18,7 @@ export default defineConfig({
         phone: resolve(import.meta.dirname, 'phone/index.html'),
         barnyard: resolve(import.meta.dirname, 'barnyard/index.html'),
         abc: resolve(import.meta.dirname, 'abc/index.html'),
+        skyhold: resolve(import.meta.dirname, 'skyhold/index.html'),
       },
     },
   },

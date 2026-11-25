@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#1a2050" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="Skyhold" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Skyhold</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/src/skyhold/style.css" />
+</head>
+<body>
+  <canvas id="view"></canvas>
+
+  <header class="hud" id="hud">
+    <div class="stat money" id="money" title="Money"></div>
+    <div class="stat" id="pop" title="Population"></div>
+    <div class="stat" id="stars" title="Star rating"></div>
+    <button class="stat alt" id="alt" title="Altitude: lift vs weight"></button>
+    <div class="stat clock" id="clock"></div>
+    <div class="speeds" id="speeds">
+      <button data-speed="0" title="Pause">⏸</button>
+      <button data-speed="1" title="Normal">▶</button>
+      <button data-speed="2" title="Fast">⏩</button>
+      <button data-speed="4" title="Fastest">⏭</button>
+    </div>
+    <button class="menu-btn" id="menu-btn" title="Menu">☰</button>
+  </header>
+  <button class="advice" id="advice"></button>
+  <div class="feed" id="feed"></div>
+
+  <div class="sheet" id="sheet" hidden></div>
+  <div class="confirm" id="confirm" hidden></div>
+
+  <nav class="palette" id="palette"></nav>
+
+  <div class="overlay" id="overlay" hidden><div class="dialog" id="dialog"></div></div>
+
+  <script type="module" src="/src/skyhold/main.ts"></script>
+</body>
+</html>

@@ -9,7 +9,7 @@ export interface BlobStore {
 }
 
 /** localStorage keys that belong to the games (and so get backed up and synced). */
-const PREFIXES = ['phone.', 'kids.', 'match.', 'keepfall.', 'balloons.'];
+const PREFIXES = ['phone.', 'kids.', 'match.', 'keepfall.', 'balloons.', 'skyhold.'];
 /** …except these, which only make sense on this device. */
 const DEVICE_ONLY = ['kids.sync.'];
 
