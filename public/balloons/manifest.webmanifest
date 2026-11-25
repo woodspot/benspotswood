@@ -1,0 +1,22 @@
+{
+  "name": "Balloon Pop",
+  "short_name": "Balloon Pop",
+  "start_url": "/balloons/",
+  "scope": "/balloons/",
+  "display": "standalone",
+  "background_color": "#5aa9f0",
+  "theme_color": "#5aa9f0",
+  "icons": [
+    {
+      "src": "/balloons/icon-180.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    },
+    {
+      "src": "/balloons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "orientation": "any"
+}

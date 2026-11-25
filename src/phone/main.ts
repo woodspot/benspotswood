@@ -2,7 +2,8 @@
 // rings someone (family, animals, Santa) who chats back. Sometimes the phone rings by itself!
 import { bindVoiceButton, en, es, playBlob, preload, say, sfx, stopSpeech, tone, unlock } from '../kids/audio';
 import { burst } from '../kids/fx';
-import { holdToExit, keepAwake, lockGestures } from '../kids/hold';
+import { keepAwake, lockGestures } from '../kids/hold';
+import { askGrownUp, guardExit, guardLinks } from '../kids/gate';
 import { bindLangButtons, getLang } from '../kids/lang';
 import { stayPortrait } from '../kids/orient';
 import { downloadBackup, restoreBackup } from '../kids/backup';
@@ -510,12 +511,12 @@ async function photoToDataUrl(file: File): Promise<string> {
 }
 
 function bindEditor(): void {
-  $('edit').addEventListener('click', () => {
+  $('edit').addEventListener('click', () => askGrownUp(() => {
     unlock(); // so recordings can be played back here
     renderEditor();
     $('menu').hidden = true;
     $('editor').hidden = false;
-  });
+  }, $('edit')));
   $('edit-done').addEventListener('click', () => {
     $('editor').hidden = true;
     $('menu').hidden = false;
@@ -643,7 +644,8 @@ function init(): void {
   bindVoiceButton($('voice'));
   bindLangButtons($('lang'));
   bindEditor();
-  holdToExit($('home'), stop);
+  guardExit($('home'), stop);
+  guardLinks();
   lockGestures();
   stayPortrait();
   $('play').addEventListener('click', start);

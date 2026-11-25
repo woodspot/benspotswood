@@ -3,7 +3,8 @@
 import { bindVoiceButton, say, sfx, stopSpeech, unlock } from '../kids/audio';
 import { bindLangButtons, getLang } from '../kids/lang';
 import { burst, CONFETTI, party } from '../kids/fx';
-import { holdToExit, keepAwake, lockGestures } from '../kids/hold';
+import { keepAwake, lockGestures } from '../kids/hold';
+import { guardExit, guardLinks } from '../kids/gate';
 import { syncOnOpen } from '../kids/sync';
 import {
   flip, gridFor, hideMiss, nameParts as namePartsOf, newMemory, newSame, PAIR_OPTIONS, PICS,
@@ -257,7 +258,8 @@ function init(): void {
   });
   bindVoiceButton($('voice'));
   bindLangButtons($('lang'));
-  holdToExit($('home'), stop);
+  guardExit($('home'), stop);
+  guardLinks();
   lockGestures();
   // Respond on touch-down: quicker and more forgiving than a full click for small fingers.
   stage().addEventListener('pointerdown', (e) => {

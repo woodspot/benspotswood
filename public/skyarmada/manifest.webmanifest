@@ -1,0 +1,21 @@
+{
+  "name": "Sky Armada",
+  "short_name": "Sky Armada",
+  "start_url": "/skyarmada/",
+  "scope": "/skyarmada/",
+  "display": "standalone",
+  "background_color": "#141826",
+  "theme_color": "#141826",
+  "icons": [
+    {
+      "src": "/skyarmada/icon-180.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    },
+    {
+      "src": "/skyarmada/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

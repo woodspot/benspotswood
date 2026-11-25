@@ -10,6 +10,8 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Barnyard</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="/barnyard/icon-180.png" />
+  <link rel="manifest" href="/barnyard/manifest.webmanifest" />
   <link rel="stylesheet" href="/src/barn/style.css" />
 </head>
 <body>
@@ -30,12 +32,12 @@
       </button>
     </div>
     <div class="settings"><div class="lang" id="lang"></div><button id="voice" class="voice-btn"></button></div>
-    <p class="tip">Grown-ups: press and hold the 🏠 button to come back here.</p>
+    <p class="tip">Grown-ups: tap 🏠 and answer the sum to come back here. For a full lock, use Guided Access.</p>
   </section>
 
   <section id="game" hidden>
     <div id="stage" class="stage"></div>
-    <button id="home" class="home" aria-label="Hold to go home">🏠<span class="hold-hint">Keep holding…</span></button>
+    <button id="home" class="home" aria-label="Grown-ups: go home">🏠</button>
     <button id="ask" class="ask" aria-label="Hear it again" hidden></button>
     <div id="party" class="party" hidden><div class="big-star">⭐</div></div>
   </section>

@@ -1,7 +1,8 @@
 // ABC: tap any letter to see it big and hear it ("B! Ball!"), or play Find it! ("Find the letter B!").
 import { bindVoiceButton, preload, say, sfx, stopSpeech, unlock } from '../kids/audio';
 import { burst, CONFETTI, party } from '../kids/fx';
-import { holdToExit, keepAwake, lockGestures } from '../kids/hold';
+import { keepAwake, lockGestures } from '../kids/hold';
+import { guardExit, guardLinks } from '../kids/gate';
 import { bindLangButtons, getLang } from '../kids/lang';
 import { syncOnOpen } from '../kids/sync';
 import { isRight, LETTERS, letterOf, meetParts, newQuiz, questionParts, type Letter, type QuizRound } from './game';
@@ -184,7 +185,8 @@ function init(): void {
   });
   bindVoiceButton($('voice'));
   bindLangButtons($('lang'));
-  holdToExit($('home'), stop);
+  guardExit($('home'), stop);
+  guardLinks();
   lockGestures();
   // Respond on touch-down: quicker and more forgiving than a full click for small fingers.
   stage().addEventListener('pointerdown', (e) => {

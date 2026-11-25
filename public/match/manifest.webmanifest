@@ -1,0 +1,22 @@
+{
+  "name": "Match It",
+  "short_name": "Match It",
+  "start_url": "/match/",
+  "scope": "/match/",
+  "display": "standalone",
+  "background_color": "#5aa9f0",
+  "theme_color": "#5aa9f0",
+  "icons": [
+    {
+      "src": "/match/icon-180.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    },
+    {
+      "src": "/match/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "orientation": "any"
+}

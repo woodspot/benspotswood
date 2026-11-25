@@ -1,0 +1,21 @@
+{
+  "name": "Skyhold",
+  "short_name": "Skyhold",
+  "start_url": "/skyhold/",
+  "scope": "/skyhold/",
+  "display": "standalone",
+  "background_color": "#1a2050",
+  "theme_color": "#1a2050",
+  "icons": [
+    {
+      "src": "/skyhold/icon-180.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    },
+    {
+      "src": "/skyhold/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

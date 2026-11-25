@@ -2,7 +2,8 @@
 // a shape or a number of pops. Every tap pops something, and nothing ever goes wrong.
 import { bindVoiceButton, sfx, say, stopSpeech, unlock } from '../kids/audio';
 import { burst, CONFETTI, party } from '../kids/fx';
-import { holdToExit, keepAwake, lockGestures } from '../kids/hold';
+import { keepAwake, lockGestures } from '../kids/hold';
+import { guardExit, guardLinks } from '../kids/gate';
 import { syncOnOpen } from '../kids/sync';
 import { bindLangButtons, getLang } from '../kids/lang';
 import { countParts, nameParts, nextParts, praiseParts, promptParts } from './speech';
@@ -274,7 +275,8 @@ function buildMenu(): void {
 
 function init(): void {
   buildMenu();
-  holdToExit($('home'), stop);
+  guardExit($('home'), stop);
+  guardLinks();
   // Pop on touch-down: quicker and more forgiving than a full click for small fingers.
   stage().addEventListener('pointerdown', (e) => {
     if (paused) return;
