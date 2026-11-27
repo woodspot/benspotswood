@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#3f8fe0" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="Kids' Games" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Kids' Games</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="/kids/icon-180.png" />
+  <link rel="manifest" href="/kids/manifest.webmanifest" />
+  <link rel="stylesheet" href="/src/kidshub/style.css" />
+</head>
+<body>
+  <div class="sky" aria-hidden="true"><i></i><i></i><i></i></div>
+
+  <section id="menu" class="menu hub">
+    <button id="gear" class="gear" aria-label="Grown-ups: settings">⚙️</button>
+    <h1>Let's <span>play!</span></h1>
+    <nav class="picks">
+      <a class="pick" href="/balloons/" style="--c:#ff6b6b"><span class="art">🎈</span><span class="lbl">Balloons</span></a>
+      <a class="pick" href="/match/" style="--c:#4cc274"><span class="art">🃏</span><span class="lbl">Match</span></a>
+      <a class="pick" href="/barnyard/" style="--c:#f7a531"><span class="art">🐮</span><span class="lbl">Barnyard</span></a>
+      <a class="pick" href="/abc/" style="--c:#9b6cf0"><span class="art">🔤</span><span class="lbl">ABC</span></a>
+      <a class="pick" href="/phone/" style="--c:#2fb5d9"><span class="art">📱</span><span class="lbl">Phone</span></a>
+    </nav>
+
+    <div id="grown" class="grown" hidden>
+      <div class="grown-box" role="dialog" aria-label="Settings">
+        <p class="gate-title">Settings</p>
+        <div class="settings"><div class="lang" id="lang"></div><button id="voice" class="voice-btn"></button></div>
+        <a class="grown-link" href="/">All games (grown-ups) →</a>
+        <p class="tip">Tip: Share → Add to Home Screen on this page gives the kids one app with every game.
+          Each game's ⬅ comes back here; its ⚙️ asks the sum. For a full lock, use Guided Access.</p>
+        <button class="grown-done">Done</button>
+      </div>
+    </div>
+  </section>
+
+  <script type="module" src="/src/kidshub/main.ts"></script>
+</body>
+</html>

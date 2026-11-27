@@ -1,5 +1,5 @@
-// Grown-ups only: leaving a toddler game asks a quick sum (like "7 + 8") typed on a keypad.
-// Little ones can tap the house as much as they like; without the answer nothing happens.
+// Grown-ups only: opening a toddler game's settings asks a quick sum (like "7 + 8") typed on a keypad.
+// Little ones can tap the gear as much as they like; without the answer nothing happens.
 
 let open: (() => void) | null = null;
 
@@ -78,24 +78,4 @@ export function askGrownUp(pass: () => void, from?: Element | null): void {
   poke();
   host.appendChild(el);
   open = close;
-}
-
-/** The 🏠 button in a game: asks the grown-up sum, then leaves. */
-export function guardExit(btn: HTMLElement, onExit: () => void): void {
-  btn.addEventListener('pointerdown', (e) => e.stopPropagation());
-  btn.addEventListener('click', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    askGrownUp(onExit, btn);
-  });
-}
-
-/** Links out of a toddler game (like "← Games") ask the sum too. */
-export function guardLinks(root: ParentNode = document): void {
-  root.querySelectorAll<HTMLAnchorElement>('a.back').forEach((a) =>
-    a.addEventListener('click', (e) => {
-      e.preventDefault();
-      askGrownUp(() => (location.href = a.href), a);
-    }),
-  );
 }

@@ -19,6 +19,7 @@ export default defineConfig({
         barnyard: resolve(import.meta.dirname, 'barnyard/index.html'),
         abc: resolve(import.meta.dirname, 'abc/index.html'),
         skyhold: resolve(import.meta.dirname, 'skyhold/index.html'),
+        kids: resolve(import.meta.dirname, 'kids/index.html'),
       },
     },
   },

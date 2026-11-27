@@ -19,7 +19,8 @@
   <div class="hills" aria-hidden="true"></div>
 
   <section id="menu" class="menu">
-    <a class="back" href="/">← Games</a>
+    <a class="back" href="/kids/" aria-label="Back to the games">⬅</a>
+    <button id="gear" class="gear" aria-label="Grown-ups: settings">⚙️</button>
     <h1>Barn<span>yard</span></h1>
     <div class="modes" id="modes">
       <button class="mode m-peek" data-mode="peek">
@@ -31,13 +32,20 @@
         <span class="lbl">Who says?</span>
       </button>
     </div>
-    <div class="settings"><div class="lang" id="lang"></div><button id="voice" class="voice-btn"></button></div>
-    <p class="tip">Grown-ups: tap 🏠 and answer the sum to come back here. For a full lock, use Guided Access.</p>
+    <div id="grown" class="grown" hidden>
+      <div class="grown-box" role="dialog" aria-label="Settings">
+        <p class="gate-title">Settings</p>
+        <div class="settings"><div class="lang" id="lang"></div><button id="voice" class="voice-btn"></button></div>
+        <a class="grown-link" href="/">All games (grown-ups) →</a>
+        <p class="tip">Kids can tap ⬅ to pick another game. For a full lock, use Guided Access.</p>
+        <button class="grown-done">Done</button>
+      </div>
+    </div>
   </section>
 
   <section id="game" hidden>
     <div id="stage" class="stage"></div>
-    <button id="home" class="home" aria-label="Grown-ups: go home">🏠</button>
+    <button id="home" class="home" aria-label="Back">⬅</button>
     <button id="ask" class="ask" aria-label="Hear it again" hidden></button>
     <div id="party" class="party" hidden><div class="big-star">⭐</div></div>
   </section>

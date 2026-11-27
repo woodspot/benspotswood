@@ -19,12 +19,20 @@
     <div class="sky" aria-hidden="true"><i></i><i></i><i></i></div>
 
     <section id="menu" class="menu">
-      <a class="back" href="/">← Games</a>
+      <a class="back" href="/kids/" aria-label="Back to the games">⬅</a>
+      <button id="gear" class="gear" aria-label="Grown-ups: settings">⚙️</button>
       <h1>Toy <span>Phone</span></h1>
       <button id="play" class="play-btn"><span class="big-phone">📱</span><span class="lbl">Play!</span></button>
-      <div class="settings"><div class="lang" id="lang"></div><button id="voice" class="voice-btn"></button></div>
-      <button id="edit" class="edit-btn">✏️ Contacts, photos &amp; voices</button>
-      <p class="tip">Grown-ups: tap 🏠 and answer the sum to come back here. For a full lock, use Guided Access.</p>
+      <div id="grown" class="grown" hidden>
+        <div class="grown-box" role="dialog" aria-label="Settings">
+          <p class="gate-title">Settings</p>
+          <div class="settings"><div class="lang" id="lang"></div><button id="voice" class="voice-btn"></button></div>
+          <button id="edit" class="edit-btn">✏️ Contacts, photos &amp; voices</button>
+          <a class="grown-link" href="/">All games (grown-ups) →</a>
+          <p class="tip">Kids can tap ⬅ to pick another game. For a full lock, use Guided Access.</p>
+          <button class="grown-done">Done</button>
+        </div>
+      </div>
     </section>
 
     <section id="editor" class="menu editor" hidden>
@@ -98,7 +106,7 @@
         </div>
       </div>
 
-      <button id="home" class="home" aria-label="Grown-ups: go home">🏠</button>
+      <button id="home" class="home" aria-label="Back">⬅</button>
     </section>
   </div>
 

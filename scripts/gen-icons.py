@@ -4,7 +4,7 @@ from PIL import Image, ImageDraw, ImageFont
 import os
 GAMES = {
   'phone': ('📱', '#5aa9f0'), 'balloons': ('🎈', '#5aa9f0'), 'match': ('🃏', '#4fb38a'),
-  'barnyard': ('🐮', '#6cc2f0'), 'abc': ('🔤', '#7b5cd6'), 'skyhold': ('🎈', '#1a2050'), 'skyarmada': ('🛩️', '#141826'),
+  'barnyard': ('🐮', '#6cc2f0'), 'kids': ('🧸', '#3f8fe0'), 'abc': ('🔤', '#7b5cd6'), 'skyhold': ('🎈', '#1a2050'), 'skyarmada': ('🛩️', '#141826'),
 }
 FONT = 'C:/Windows/Fonts/seguiemj.ttf'
 for game, (emoji, bg) in GAMES.items():

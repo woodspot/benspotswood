@@ -1,0 +1,11 @@
+# Pages and the voice clip list must always be checked for a newer copy, so phones (Safari
+# especially) never keep running an old version. Built scripts and clips have unique names and
+# can be cached as long as the browser likes.
+<IfModule mod_headers.c>
+  <FilesMatch "\.(html|json|webmanifest)$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+</IfModule>
+<IfModule mod_mime.c>
+  AddType application/manifest+json .webmanifest
+</IfModule>

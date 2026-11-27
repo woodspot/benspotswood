@@ -3,7 +3,7 @@
 import { bindVoiceButton, en, es, playBlob, preload, say, sfx, stopSpeech, tone, unlock } from '../kids/audio';
 import { burst } from '../kids/fx';
 import { keepAwake, lockGestures } from '../kids/hold';
-import { askGrownUp, guardExit, guardLinks } from '../kids/gate';
+import { bindKidsNav, closeSettings } from '../kids/nav';
 import { bindLangButtons, getLang } from '../kids/lang';
 import { stayPortrait } from '../kids/orient';
 import { downloadBackup, restoreBackup } from '../kids/backup';
@@ -511,12 +511,14 @@ async function photoToDataUrl(file: File): Promise<string> {
 }
 
 function bindEditor(): void {
-  $('edit').addEventListener('click', () => askGrownUp(() => {
+  // Only reachable from the grown-ups' settings panel, which already asked the sum.
+  $('edit').addEventListener('click', () => {
     unlock(); // so recordings can be played back here
     renderEditor();
+    closeSettings();
     $('menu').hidden = true;
     $('editor').hidden = false;
-  }, $('edit')));
+  });
   $('edit-done').addEventListener('click', () => {
     $('editor').hidden = true;
     $('menu').hidden = false;
@@ -644,8 +646,7 @@ function init(): void {
   bindVoiceButton($('voice'));
   bindLangButtons($('lang'));
   bindEditor();
-  guardExit($('home'), stop);
-  guardLinks();
+  bindKidsNav(stop);
   lockGestures();
   stayPortrait();
   $('play').addEventListener('click', start);
