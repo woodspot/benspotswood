@@ -22,12 +22,12 @@ export interface Spec {
   shape: ShapeId | null; // drawn on the balloon in Shapes mode
 }
 
-export type Target = { kind: 'any' } | { kind: 'color'; id: ColorId } | { kind: 'shape'; id: ShapeId } | { kind: 'count'; n: number };
+export type Target = { kind: 'any' } | { kind: 'color'; id: ColorId } | { kind: 'shape'; id: ShapeId } | { kind: 'count' };
 
 export interface Session {
   mode: Mode;
   target: Target;
-  progress: number; // balloons popped toward the current target (Count mode)
+  progress: number; // Count mode: how far they've counted (0–100, then back to 0)
   correct: number; // right pops this session: unlocks more colours and shapes
 }
 
@@ -54,11 +54,8 @@ export function newTarget(s: Pick<Session, 'mode' | 'correct'>, rng: Rng, prev?:
       const pool = shapePool(s.correct).filter((x) => !(prev?.kind === 'shape' && prev.id === x));
       return { kind: 'shape', id: pick(rng, pool) };
     }
-    case 'count': {
-      const max = Math.min(5, 2 + Math.floor(s.correct / 4));
-      const opts = Array.from({ length: max }, (_, i) => i + 1).filter((n) => !(prev?.kind === 'count' && prev.n === n));
-      return { kind: 'count', n: pick(rng, opts) };
-    }
+    case 'count':
+      return { kind: 'count' };
   }
 }
 
@@ -89,9 +86,14 @@ export function nextBalloon(s: Session, onScreen: Spec[], rng: Rng): Spec {
   return random();
 }
 
+/** Count mode: 1, 2, 3… with ten dots to fill, a party at ten, then keep popping and counting to 100. */
+export const COUNT_FIRST = 10;
+export const COUNT_TOP = 100;
+
 export type PopResult =
+  | { kind: 'count'; count: number; party: boolean } // say the number; party at 10 and 100 (then start again at 1)
   | { kind: 'free' } // Free mode: every pop is a happy pop
-  | { kind: 'right'; done: boolean; count?: number } // done: target finished, time for a new one
+  | { kind: 'right'; done: boolean } // done: target finished, time for a new one
   | { kind: 'other'; said: string }; // not the one asked for: name it, gently
 
 /** A balloon was popped. Updates the session and says what should happen. */
@@ -102,24 +104,17 @@ export function pop(s: Session, b: Spec, rng: Rng): PopResult {
     return { kind: 'free' };
   }
   if (t.kind === 'count') {
-    s.progress++;
-    if (s.progress >= t.n) {
-      s.correct++;
-      return finish(s, rng, s.progress);
-    }
-    return { kind: 'right', done: false, count: s.progress };
+    s.correct++;
+    const count = ++s.progress;
+    if (count >= COUNT_TOP) s.progress = 0;
+    return { kind: 'count', count, party: count === COUNT_FIRST || count === COUNT_TOP };
   }
   if (matches(t, b)) {
     s.correct++;
-    return finish(s, rng);
+    s.target = newTarget(s, rng, s.target);
+    return { kind: 'right', done: true };
   }
   return { kind: 'other', said: t.kind === 'shape' && b.shape ? `That's a ${b.shape}.` : `That's ${b.color}.` };
-}
-
-function finish(s: Session, rng: Rng, count?: number): PopResult {
-  s.target = newTarget(s, rng, s.target);
-  s.progress = 0;
-  return { kind: 'right', done: true, count };
 }
 
 /** Seeded RNG for tests. */

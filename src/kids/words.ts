@@ -61,3 +61,21 @@ export const NUMBER_WORDS: { en: string; es: string }[] = [
   { en: 'nine', es: 'nueve' },
 ];
 
+
+const EN_TEENS = ['ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'];
+const EN_TENS = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+const ES_TEENS = ['diez', 'once', 'doce', 'trece', 'catorce', 'quince', 'dieciséis', 'diecisiete', 'dieciocho', 'diecinueve'];
+const ES_TWENTIES = ['veinte', 'veintiuno', 'veintidós', 'veintitrés', 'veinticuatro', 'veinticinco', 'veintiséis', 'veintisiete', 'veintiocho', 'veintinueve'];
+const ES_TENS = ['', '', '', 'treinta', 'cuarenta', 'cincuenta', 'sesenta', 'setenta', 'ochenta', 'noventa'];
+
+/** A number from 0 to 100 as a word: 42 → "forty-two" / "cuarenta y dos". */
+export function numberWord(n: number): { en: string; es: string } {
+  if (n < 10) return NUMBER_WORDS[n];
+  if (n >= 100) return { en: 'one hundred', es: 'cien' };
+  const t = Math.floor(n / 10);
+  const u = n % 10;
+  return {
+    en: t === 1 ? EN_TEENS[u] : u ? `${EN_TENS[t]}-${NUMBER_WORDS[u].en}` : EN_TENS[t],
+    es: t === 1 ? ES_TEENS[u] : t === 2 ? ES_TWENTIES[u] : u ? `${ES_TENS[t]} y ${NUMBER_WORDS[u].es}` : ES_TENS[t],
+  };
+}

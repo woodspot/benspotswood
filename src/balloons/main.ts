@@ -8,7 +8,7 @@ import { syncOnOpen } from '../kids/sync';
 import { bindLangButtons, getLang } from '../kids/lang';
 import { countParts, nameParts, nextParts, praiseParts, promptParts } from './speech';
 import {
-  COLOR_HEX, newSession, nextBalloon, pop,
+  COLOR_HEX, COUNT_FIRST, newSession, nextBalloon, pop,
   type Mode, type Session, type ShapeId, type Spec, type Target,
 } from './game';
 
@@ -69,6 +69,8 @@ let balloons: Balloon[] = [];
 let nextId = 1;
 let running = false;
 let paused = false; // during a celebration
+let holdTimer = 0;
+let holdPops = false; // the moment between reaching 10 (or 100) and its party: no popping on past it
 let lastSpawn = 0;
 let lastTouch = 0;
 let lastFrame = 0;
@@ -110,7 +112,9 @@ function frame(now: number): void {
   const { bh, max } = size();
   if (!paused) {
     // A steady stream: about one new balloon every 1.4 s, so the sky is never empty.
-    if (balloons.length < max && now - lastSpawn > (balloons.length < 2 ? 500 : 1400)) spawn(now);
+    // Counting past ten, they can pop as fast as they like, so balloons come a little quicker.
+    const gap = session.mode === 'count' && session.progress >= COUNT_FIRST ? 900 : 1400;
+    if (balloons.length < max && now - lastSpawn > (balloons.length < 2 ? 500 : gap)) spawn(now);
     for (const b of balloons) {
       b.y -= b.speed * dt;
       b.phase += dt * 1.3;
@@ -161,6 +165,22 @@ function onPop(b: Balloon): void {
     if (session.correct % 3 === 0) setTimeout(sfx.yay, 60);
     if (session.correct % 15 === 0) celebrate();
     else say(nameParts(b.spec, false, getLang())); // Spanish: every pop names its colour
+  } else if (res.kind === 'count') {
+    burst(stage(), cx, cy, [color, ...CONFETTI], res.party ? 30 : 18, 130);
+    bigText(cx, cy, String(res.count));
+    sfx.count(res.count);
+    say(countParts(res.count, getLang())); // count out loud: "one, two… one hundred"
+    if (res.count % 10 === 0) setTimeout(sfx.yay, 250); // every ten is worth a little cheer
+    renderTarget(session.target, res.party);
+    if (res.party) {
+      // Ten, and one hundred (then back to one). Hear the number first; no popping past it meanwhile.
+      holdPops = true;
+      holdTimer = window.setTimeout(() => {
+        holdPops = false;
+        celebrate();
+      }, 1100);
+    }
+    return;
   } else if (res.kind === 'other') {
     burst(stage(), cx, cy, [color], 10, 60);
     setTimeout(sfx.boop, 80);
@@ -168,13 +188,8 @@ function onPop(b: Balloon): void {
     say(nameParts(b.spec, session.mode === 'shapes', getLang())); // Spanish: name what they popped
   } else {
     burst(stage(), cx, cy, [color, ...CONFETTI], 22, 140);
-    if (res.count) {
-      bigText(cx, cy, String(res.count));
-      sfx.count(res.count);
-    }
-    if (res.count && !res.done) say(countParts(res.count, getLang())); // count out loud: "one, two…"
     if (res.done) {
-      setTimeout(sfx.yay, res.count ? 250 : 60);
+      setTimeout(sfx.yay, 60);
       rightAnswers++;
       renderTarget(asked, true);
       if (rightAnswers % CELEBRATE_EVERY === 0) {
@@ -204,7 +219,8 @@ function celebrate(): void {
   party($('party'), stage(), () => {
     paused = false;
     renderTarget(session.target);
-    if (session.target.kind !== 'any') say(promptParts(session.target, getLang()));
+    // Counting carries straight on after the party; the others ask for the next thing.
+    if (session.target.kind !== 'any' && session.target.kind !== 'count') say(promptParts(session.target, getLang()));
   });
 }
 
@@ -213,6 +229,7 @@ function celebrate(): void {
 function renderTarget(t: Target, cheer = false): void {
   const el = $('target');
   el.classList.toggle('cheer', cheer);
+  el.classList.remove('counting');
   if (t.kind === 'any') {
     el.hidden = true;
     return;
@@ -220,8 +237,15 @@ function renderTarget(t: Target, cheer = false): void {
   el.hidden = false;
   if (t.kind === 'color') el.innerHTML = `<span class="t-balloon">${balloonSvg({ color: t.id, shape: null }, false)}</span>`;
   else if (t.kind === 'shape') el.innerHTML = `<svg class="t-shape" viewBox="20 26 60 60">${shapeSvg(t.id, 50, 56, 22, '#ffd34d')}</svg>`;
-  else
-    el.innerHTML = Array.from({ length: t.n }, (_, i) => `<span class="dot ${cheer || i < session.progress ? 'on' : ''}">${i + 1}</span>`).join('');
+  else {
+    // Up to ten: ten dots that fill in. Past ten: the number they've reached, big.
+    const n = session.progress;
+    const dots = n <= COUNT_FIRST && !(cheer && n === 0); // just reached 100: show it before going back to 1
+    el.classList.toggle('counting', dots);
+    el.innerHTML = dots
+      ? Array.from({ length: COUNT_FIRST }, (_, i) => `<span class="dot ${i < n ? 'on' : ''}">${i + 1}</span>`).join('')
+      : `<b class="t-num">${n || 100}</b>`;
+  }
 }
 
 // ── Screens ────────────────────────────────────────────────────
@@ -238,6 +262,8 @@ function start(mode: Mode): void {
   if (mode !== 'free') say(promptParts(session.target, getLang()));
   running = true;
   paused = false;
+  holdPops = false;
+  clearTimeout(holdTimer);
   lastFrame = 0;
   lastTouch = performance.now();
   requestAnimationFrame(frame);
@@ -246,6 +272,8 @@ function start(mode: Mode): void {
 
 function stop(): void {
   running = false;
+  clearTimeout(holdTimer);
+  holdPops = false;
   for (const b of [...balloons]) remove(b);
   stopSpeech();
   keepAwake(false);
@@ -278,7 +306,7 @@ function init(): void {
   bindKidsNav(stop);
   // Pop on touch-down: quicker and more forgiving than a full click for small fingers.
   stage().addEventListener('pointerdown', (e) => {
-    if (paused) return;
+    if (paused || holdPops) return;
     const el = (e.target as HTMLElement).closest<HTMLElement>('.balloon');
     const b = el && balloons.find((x) => String(x.id) === el.dataset.id);
     if (b) onPop(b);

@@ -21,12 +21,12 @@ function balloons(): Part[] {
     { kind: 'any' },
     ...COLORS.map((c) => ({ kind: 'color', id: c.id }) as Target),
     ...SHAPES.map((id) => ({ kind: 'shape', id }) as Target),
-    ...[1, 2, 3, 4, 5].map((n) => ({ kind: 'count', n }) as Target),
+    { kind: 'count' },
   ];
   const out: Part[] = [];
   for (const lang of LANGS) {
     for (const t of targets) out.push(...promptParts(t, lang), ...praiseParts(t, lang), ...nextParts(t, lang));
-    for (let n = 1; n <= 5; n++) out.push(...countParts(n, lang));
+    for (let n = 1; n <= 100; n++) out.push(...countParts(n, lang));
     for (const c of COLORS) out.push(...balloonNames({ color: c.id, shape: null }, false, lang));
     for (const s of SHAPES) out.push(...balloonNames({ color: 'red', shape: s }, true, lang));
   }

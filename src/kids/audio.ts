@@ -107,7 +107,7 @@ export const sfx = {
   },
   /** One step of counting: the note climbs with the count. */
   count(n: number): void {
-    tone([0, 523, 587, 659, 698, 784][Math.min(n, 5)], 0.05, 0.35, 'triangle', 0.25);
+    tone([523, 587, 659, 784, 880, 1047, 1175, 1319, 1568, 1760][(Math.max(1, n) - 1) % 10], 0.05, 0.35, 'triangle', 0.25);
   },
   /** Not the one asked for: a soft, friendly boop (never a buzzer). */
   boop(): void {

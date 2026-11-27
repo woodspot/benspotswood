@@ -1,12 +1,12 @@
 // What Balloon Pop says, in English or with the learning word in Spanish.
 // Instructions are always English: "Pop the… rojo… balloon!"
-import { COLOR_WORDS, en, es, NUMBER_WORDS, SHAPE_WORDS, type Lang, type Part } from '../kids/words';
+import { COLOR_WORDS, en, es, numberWord, SHAPE_WORDS, type Lang, type Part } from '../kids/words';
 import type { Spec, Target } from './game';
 
 const cap = (w: string) => w[0].toUpperCase() + w.slice(1);
 
 function wordFor(t: Target, lang: Lang): string {
-  const w = t.kind === 'color' ? COLOR_WORDS[t.id] : t.kind === 'shape' ? SHAPE_WORDS[t.id] : t.kind === 'count' ? NUMBER_WORDS[t.n] : null;
+  const w = t.kind === 'color' ? COLOR_WORDS[t.id] : t.kind === 'shape' ? SHAPE_WORDS[t.id] : null;
   return w ? w[lang] : '';
 }
 
@@ -16,12 +16,12 @@ export function promptParts(t: Target, lang: Lang): Part[] {
   if (lang === 'en') {
     if (t.kind === 'color') return [en(`Pop the ${w} balloon!`)];
     if (t.kind === 'shape') return [en(`Pop the ${w}!`)];
-    if (t.kind === 'count') return [en(t.n === 1 ? 'Pop one balloon!' : `Pop ${w} balloons!`)];
+    if (t.kind === 'count') return [en("Let's count! Pop a balloon!")];
     return [en('Pop the balloons!')];
   }
   if (t.kind === 'color') return [en('Pop the'), es(w), en('balloon!')];
   if (t.kind === 'shape') return [en('Pop the'), es(w)];
-  if (t.kind === 'count') return [en('Pop'), es(w), en(t.n === 1 ? 'balloon!' : 'balloons!')];
+  if (t.kind === 'count') return [en("Let's count! Pop a balloon!")];
   return [en('Pop the balloons!')];
 }
 
@@ -40,9 +40,9 @@ export function nextParts(t: Target, lang: Lang): Part[] {
   return lang === 'es' ? [en(lead), es(w)] : [en(`${lead} ${w}.`)];
 }
 
-/** Counting out loud as they pop: "one", "two"… or "uno", "dos"… */
+/** Counting out loud as they pop: "one", "two"… "one hundred" or "uno", "dos"… "cien" */
 export function countParts(n: number, lang: Lang): Part[] {
-  const w = NUMBER_WORDS[Math.min(n, 5)][lang];
+  const w = numberWord(n)[lang];
   return lang === 'es' ? [es(w)] : [en(w)];
 }
 

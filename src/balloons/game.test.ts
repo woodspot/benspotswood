@@ -35,14 +35,28 @@ describe('balloon pop', () => {
     expect(s.correct).toBe(1);
   });
 
-  it('counting finishes after n pops of any balloon', () => {
+  it('counting goes 1, 2, 3… with a party at 10, keeps going to 100, then starts again', () => {
     const rng = mulberry32(4);
     const s = newSession('count', rng);
-    s.target = { kind: 'count', n: 3 };
-    expect(pop(s, { color: 'red', shape: null }, rng)).toEqual({ kind: 'right', done: false, count: 1 });
-    expect(pop(s, { color: 'blue', shape: null }, rng)).toEqual({ kind: 'right', done: false, count: 2 });
-    expect(pop(s, { color: 'blue', shape: null }, rng)).toEqual({ kind: 'right', done: true, count: 3 });
-    expect(s.progress).toBe(0);
+    const red: Spec = { color: 'red', shape: null };
+    const results = Array.from({ length: 101 }, () => pop(s, red, rng));
+    expect(results[0]).toEqual({ kind: 'count', count: 1, party: false });
+    expect(results[9]).toEqual({ kind: 'count', count: 10, party: true });
+    expect(results[10]).toEqual({ kind: 'count', count: 11, party: false });
+    expect(results[99]).toEqual({ kind: 'count', count: 100, party: true });
+    expect(results[100]).toEqual({ kind: 'count', count: 1, party: false }); // back to one
+    expect(results.filter((r) => r.kind === 'count' && r.party)).toHaveLength(2);
+  });
+
+  it('says every number up to one hundred', () => {
+    expect(countParts(13, 'en')).toEqual([{ text: 'thirteen', lang: 'en' }]);
+    expect(countParts(42, 'en')).toEqual([{ text: 'forty-two', lang: 'en' }]);
+    expect(countParts(100, 'en')).toEqual([{ text: 'one hundred', lang: 'en' }]);
+    expect(countParts(16, 'es')).toEqual([{ text: 'dieciséis', lang: 'es' }]);
+    expect(countParts(22, 'es')).toEqual([{ text: 'veintidós', lang: 'es' }]);
+    expect(countParts(30, 'es')).toEqual([{ text: 'treinta', lang: 'es' }]);
+    expect(countParts(57, 'es')).toEqual([{ text: 'cincuenta y siete', lang: 'es' }]);
+    expect(countParts(100, 'es')).toEqual([{ text: 'cien', lang: 'es' }]);
   });
 
   it('more colours unlock as the child gets them right', () => {
@@ -56,7 +70,7 @@ describe('balloon pop', () => {
     expect(promptParts(red, 'es')).toEqual([
       { text: 'Pop the', lang: 'en' }, { text: 'rojo', lang: 'es' }, { text: 'balloon!', lang: 'en' },
     ]);
-    expect(promptParts({ kind: 'count', n: 3 }, 'en')).toEqual([{ text: 'Pop three balloons!', lang: 'en' }]);
+    expect(promptParts({ kind: 'count' }, 'en')).toEqual([{ text: "Let's count! Pop a balloon!", lang: 'en' }]);
     expect(praiseParts({ kind: 'shape', id: 'star' }, 'en')).toEqual([{ text: 'Star!', lang: 'en' }]);
     expect(praiseParts({ kind: 'shape', id: 'star' }, 'es')).toEqual([{ text: '¡Estrella!', lang: 'es' }]);
     expect(nextParts({ kind: 'color', id: 'blue' }, 'es')).toEqual([{ text: 'Now', lang: 'en' }, { text: 'azul', lang: 'es' }]);

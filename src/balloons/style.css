@@ -47,3 +47,8 @@
   80% { transform: translateX(-50%) rotate(3deg); }
 }
 
+
+/* Count mode: ten dots in two rows of five, then the number itself once they're past ten */
+.target.counting { display: grid; grid-template-columns: repeat(5, 34px); gap: 6px; height: auto; padding: 10px 14px; }
+.target.counting .dot { width: 34px; height: 34px; border-width: 3px; font-size: 1rem; }
+.t-num { font-size: 3rem; font-weight: 900; color: #f5a623; font-variant-numeric: tabular-nums; line-height: 1; }
