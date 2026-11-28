@@ -2,12 +2,14 @@
 //  - ⬅ in a game goes back to that game's start screen (pick another way to play),
 //  - ⬅ on the start screen goes back to the Kids' Games page (pick another game),
 //  - ⚙️ is for grown-ups: it asks the sum (gate.ts), then opens the settings panel.
+import { drawPage } from './art';
 import { askGrownUp } from './gate';
 
 const byId = (id: string) => document.getElementById(id);
 
 /** Open the grown-ups' settings panel (#grown) after the sum; ⚙️ is #gear. */
 export function bindSettings(): void {
+  drawPage(); // every kids' page sets up here, so its emoji become drawings here too
   const gear = byId('gear');
   const panel = byId('grown');
   if (!gear || !panel) return;

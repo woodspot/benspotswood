@@ -3,6 +3,7 @@ import { bindVoiceButton, preload, say, sfx, stopSpeech, unlock } from '../kids/
 import { burst, CONFETTI, party } from '../kids/fx';
 import { keepAwake, lockGestures } from '../kids/hold';
 import { bindKidsNav } from '../kids/nav';
+import { drawing } from '../kids/art';
 import { bindLangButtons, getLang } from '../kids/lang';
 import { syncOnOpen } from '../kids/sync';
 import { isRight, LETTERS, letterOf, meetParts, newQuiz, questionParts, type Letter, type QuizRound } from './game';
@@ -81,7 +82,7 @@ function showLetter(el: HTMLElement): void {
   const card = $('card');
   card.innerHTML = `<div class="card" style="--bg:${colorOf(l.ch)}">
     <div class="big">${l.ch}<small>${l.ch.toLowerCase()}</small></div>
-    <div class="pic-word">${l.emoji}</div>
+    <div class="pic-word">${drawing(l.emoji)}</div>
     <div class="word">${wordHtml(l)}</div>
   </div>`;
   card.hidden = false;
@@ -121,7 +122,7 @@ function findRound(): void {
 function answer(el: HTMLElement): void {
   if (!quiz || busy) return;
   const l = letterOf(el.dataset.ch!, getLang());
-  if (!el.querySelector('.emo')) el.insertAdjacentHTML('beforeend', `<span class="emo">${l.emoji}</span>`);
+  if (!el.querySelector('.emo')) el.insertAdjacentHTML('beforeend', `<span class="emo">${drawing(l.emoji)}</span>`);
   if (!isRight(quiz, l.ch)) {
     // Not that one: it says its own name and word, so they learn it anyway.
     restart(el, 'wiggle');

@@ -1,10 +1,15 @@
 // Draws pictures for the toddler games with OpenAI's image model, in one consistent style.
 //
+//   node scripts/gen-art.mjs --full [--only id,id] [--dry]
+//        every picture in src/kids/art-list.json that has no drawing yet, in the storybook style,
+//        full size → art-raw/ (scripts/shrink-art.py then makes the small files in src/kids/art/).
+//        --only redraws just those ids; --dry lists what would be drawn and the rough cost.
 //   node scripts/gen-art.mjs --samples    a few test subjects in each candidate style → art-samples/
 //
-// Needs OPENAI_API_KEY in the environment. Usually run by the "Generate pictures" GitHub workflow,
-// which keeps the key in a repository secret. (Full-set generation comes once a style is chosen.)
+// Needs OPENAI_API_KEY in the environment (not for --dry). Usually run by the "Generate pictures"
+// GitHub workflow, which keeps the key in a repository secret.
 
+import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
@@ -35,8 +40,12 @@ export const SAMPLES = {
   tiger: 'tiger cub face (just the head), smiling',
 };
 
+// The style chosen for the games.
+const STYLE = 'storybook';
+const EACH = 0.045; // rough $ per picture at medium quality, for --dry
+
 const key = process.env.OPENAI_API_KEY;
-if (!key) {
+if (!key && !process.argv.includes('--dry')) {
   console.error('Set OPENAI_API_KEY to draw pictures.');
   process.exit(1);
 }
@@ -75,25 +84,53 @@ async function draw(prompt) {
   }
 }
 
+async function drawAll(jobs) {
+  // Draw the first one alone, so a model fallback happens once before the rest start.
+  const queue = [...jobs];
+  const failed = [];
+  const one = async (j) => {
+    try {
+      await writeFile(j.file, await draw(j.prompt));
+      console.log(`✓ ${j.file}`);
+    } catch (err) {
+      console.error(`✗ ${j.file}: ${err.message}`);
+      failed.push(j.file);
+    }
+  };
+  if (queue.length) await one(queue.shift());
+  await Promise.all(Array.from({ length: CONCURRENCY }, async () => {
+    for (let j; (j = queue.shift()); ) await one(j);
+  }));
+  return failed;
+}
+
+async function full() {
+  const list = JSON.parse(readFileSync('src/kids/art-list.json', 'utf8'));
+  const arg = process.argv.indexOf('--only');
+  const only = arg > 0 ? process.argv[arg + 1].split(',') : null;
+  const todo = Object.values(list).filter(([id]) => (only ? only.includes(id) : !existsSync(`src/kids/art/${id}.webp`)));
+  console.log(`${todo.length} to draw${todo.length ? `: ${todo.map(([id]) => id).join(', ')}` : ''}`);
+  console.log(`about $${(todo.length * EACH).toFixed(2)} at ${QUALITY} quality`);
+  if (process.argv.includes('--dry') || !todo.length) return;
+  const out = 'art-raw';
+  await mkdir(out, { recursive: true });
+  const jobs = todo.map(([id, subject]) => ({ file: join(out, `${id}.webp`), prompt: `${COMMON.replace('{subject}', subject)} ${STYLES[STYLE]}` }));
+  const failed = await drawAll(jobs);
+  console.log(`${jobs.length - failed.length} pictures with ${model} (${QUALITY}), about $${spent.toFixed(2)}`);
+  if (failed.length) console.error(`${failed.length} failed: ${failed.join(', ')} (run again to retry just those)`);
+}
+
 async function samples() {
   const out = 'art-samples';
   await mkdir(out, { recursive: true });
   const jobs = Object.entries(STYLES).flatMap(([style, look]) =>
     Object.entries(SAMPLES).map(([id, subject]) => ({ file: join(out, `${style}-${id}.webp`), prompt: `${COMMON.replace('{subject}', subject)} ${look}` })),
   );
-  // Draw the first one alone, so a model fallback happens once before the rest start.
-  const queue = [...jobs];
-  const one = async (j) => {
-    await writeFile(j.file, await draw(j.prompt));
-    console.log(`✓ ${j.file}`);
-  };
-  await one(queue.shift());
-  await Promise.all(Array.from({ length: CONCURRENCY }, async () => {
-    for (let j; (j = queue.shift()); ) await one(j);
-  }));
+  await drawAll(jobs);
   await writeFile(join(out, 'info.json'), JSON.stringify({ model, quality: QUALITY, transparent, styles: STYLES, samples: SAMPLES, common: COMMON }, null, 2));
   console.log(`${jobs.length} pictures with ${model} (${QUALITY}), about $${spent.toFixed(2)}`);
 }
 
-if (process.argv.includes('--samples')) await samples();
-else console.error('Run with --samples (full-set generation comes once a style is chosen).');
+if (process.argv.includes('--full')) await full();
+else if (process.argv.includes('--samples')) await samples();
+else console.error('Run with --full or --samples.');

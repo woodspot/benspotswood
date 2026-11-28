@@ -4,6 +4,7 @@ import { bindVoiceButton, en, es, playBlob, preload, say, sfx, stopSpeech, tone,
 import { burst } from '../kids/fx';
 import { keepAwake, lockGestures } from '../kids/hold';
 import { bindKidsNav, closeSettings } from '../kids/nav';
+import { drawing } from '../kids/art';
 import { bindLangButtons, getLang } from '../kids/lang';
 import { stayPortrait } from '../kids/orient';
 import { downloadBackup, restoreBackup } from '../kids/backup';
@@ -45,7 +46,7 @@ function avatarHtml(c: Contact): string {
   const photo = customOf(c.id)?.photo;
   return photo
     ? `<img src="${photo}" alt="">`
-    : `<span class="emoji" style="background:${c.color}">${c.emoji}</span>`;
+    : `<span class="emoji" style="background:${c.color}">${drawing(c.emoji)}</span>`;
 }
 
 function setAvatar(el: HTMLElement, c: Contact): void {

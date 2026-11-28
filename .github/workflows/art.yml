@@ -1,19 +1,26 @@
 name: Generate pictures
 
 # Run by hand from the Actions tab. Draws pictures for the toddler games with OpenAI
-# (key in the OPENAI_API_KEY repository secret). "samples" draws a few test pictures in each
-# candidate style and attaches them to the run as a download; nothing is committed.
+# (key in the OPENAI_API_KEY repository secret).
+#  - full: draws every picture in src/kids/art-list.json that has no drawing yet (storybook style),
+#    shrinks them into src/kids/art/, commits them, then redeploys. "only" redraws just those ids.
+#  - samples: a few test pictures in each candidate style, attached to the run; nothing committed.
 on:
   workflow_dispatch:
     inputs:
       mode:
         description: What to draw
         type: choice
-        options: [samples]
-        default: samples
+        options: [full, samples]
+        default: full
+      only:
+        description: "full: redraw just these ids (comma-separated, e.g. dog,cat); empty = only missing ones"
+        type: string
+        default: ''
 
 permissions:
-  contents: read
+  contents: write
+  actions: write
 
 jobs:
   art:
@@ -36,3 +43,48 @@ jobs:
         with:
           name: art-samples
           path: art-samples/
+
+      - name: Draw pictures
+        if: inputs.mode == 'full'
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ONLY: ${{ inputs.only }}
+        run: |
+          if [ -n "$ONLY" ]; then node scripts/gen-art.mjs --full --only "$ONLY"; else node scripts/gen-art.mjs --full; fi
+
+      - name: Shrink pictures
+        if: inputs.mode == 'full'
+        run: |
+          mkdir -p art-raw
+          pip install --quiet pillow
+          python scripts/shrink-art.py art-raw
+
+      # The full-size drawings, kept with the run for a while in case one needs touching up.
+      - uses: actions/upload-artifact@v4
+        if: inputs.mode == 'full'
+        with:
+          name: art-raw
+          path: art-raw/
+          if-no-files-found: ignore
+
+      - name: Commit pictures
+        id: commit
+        if: inputs.mode == 'full'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/kids/art
+          if git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            git commit -m "Update generated pictures"
+            git push
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Pushes made by this workflow don't start other workflows, so ask for a deploy directly.
+      - name: Deploy
+        if: steps.commit.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run deploy.yml --ref main

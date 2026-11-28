@@ -5,3 +5,4 @@ dist/
 .env
 public/api/data/
 art-samples/
+art-raw/

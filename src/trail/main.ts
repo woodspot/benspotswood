@@ -4,6 +4,7 @@ import { burst, CONFETTI, party } from '../kids/fx';
 import { keepAwake, lockGestures } from '../kids/hold';
 import { bindLangButtons, getLang } from '../kids/lang';
 import { bindKidsNav } from '../kids/nav';
+import { drawing } from '../kids/art';
 import { syncOnOpen } from '../kids/sync';
 import { letterOf } from '../abc/game';
 import { COLOR_HEX } from '../balloons/game';
@@ -85,7 +86,7 @@ function showMenu(): void {
   $('players').innerHTML = players
     .map(
       (p) => `<button class="player" data-id="${p.id}">
-        <span class="avatar">${p.avatar}</span>
+        <span class="avatar">${drawing(p.avatar)}</span>
         ${p.name ? `<span class="pname">${esc(p.name)}</span>` : ''}
         <span class="pstars">⭐ ${p.stars}</span>
       </button>`,
@@ -103,7 +104,7 @@ const TOP = 76; // room above the first stop for the player standing on it
 const xAt = (i: number) => 50 + 28 * Math.sin(i * 1.05); // % across: a winding path
 
 function renderTrail(): void {
-  $('me').innerHTML = `<span class="avatar small">${me.avatar}</span>${me.name ? esc(me.name) : ''}<span class="pstars">⭐ ${me.stars}</span>`;
+  $('me').innerHTML = `<span class="avatar small">${drawing(me.avatar)}</span>${me.name ? esc(me.name) : ''}<span class="pstars">⭐ ${me.stars}</span>`;
   $('path').innerHTML = WORLDS.map((w, wi) => {
     const stops = STOPS.slice(wi * STOPS_PER_WORLD, (wi + 1) * STOPS_PER_WORLD);
     const h = STOPS_PER_WORLD * ROW + TOP - 20;
@@ -120,7 +121,7 @@ function renderTrail(): void {
             return `<button class="stop ${state}" data-stop="${s.index}" style="left:${xAt(s.index)}%;top:${TOP + k * ROW}px" aria-label="Stop ${s.index + 1}">
               <span class="icon">${KIND_ICON[s.kind]}</span>
               ${state === 'done' ? '<span class="badge">⭐</span>' : state === 'locked' ? '<span class="badge lock">🔒</span>' : ''}
-              ${s.index === Math.min(me.done, STOP_COUNT - 1) ? `<span class="here">${me.avatar}</span>` : ''}
+              ${s.index === Math.min(me.done, STOP_COUNT - 1) ? `<span class="here">${drawing(me.avatar)}</span>` : ''}
             </button>`;
           })
           .join('')}
@@ -217,10 +218,10 @@ function renderQuestion(q: Question): void {
       break;
     case 'sound':
       top = `<div class="show-letter">${q.target}</div>`;
-      tiles = q.choices.map((ch) => tile(ch, `<span class="pic">${letterOf(ch, lang).emoji}</span>`)).join('');
+      tiles = q.choices.map((ch) => tile(ch, `<span class="pic">${drawing(letterOf(ch, lang).emoji)}</span>`)).join('');
       break;
     case 'count':
-      top = `<div class="things">${Array.from({ length: q.n }, (_, k) => `<span class="thing" data-k="${k}">${q.thing.e}</span>`).join('')}</div>`;
+      top = `<div class="things">${Array.from({ length: q.n }, (_, k) => `<span class="thing" data-k="${k}">${drawing(q.thing.e)}</span>`).join('')}</div>`;
       tiles = q.choices.map((n) => tile(n, `<span class="num">${n}</span>`)).join('');
       break;
     case 'color':
@@ -230,11 +231,11 @@ function renderQuestion(q: Question): void {
       tiles = q.choices.map((s, k) => tile(s, shapeSvg(s, q.colors[k]), 'shape')).join('');
       break;
     case 'size':
-      tiles = q.choices.map((s) => tile(s, `<span class="pic ${s}">${q.thing}</span>`, 'sizer')).join('');
+      tiles = q.choices.map((s) => tile(s, `<span class="pic ${s}">${drawing(q.thing)}</span>`, 'sizer')).join('');
       break;
     case 'pattern':
-      top = `<div class="seq">${q.seq.map((t) => `<span>${t.e}</span>`).join('')}<span class="blank">?</span></div>`;
-      tiles = q.choices.map((t) => tile(t.e, `<span class="pic">${t.e}</span>`)).join('');
+      top = `<div class="seq">${q.seq.map((t) => `<span>${drawing(t.e)}</span>`).join('')}<span class="blank">?</span></div>`;
+      tiles = q.choices.map((t) => tile(t.e, `<span class="pic">${drawing(t.e)}</span>`)).join('');
       break;
     case 'dots':
       board.innerHTML = dotsSvg(q);
@@ -256,7 +257,7 @@ async function choose(el: HTMLElement): Promise<void> {
     el.classList.add('yes');
     sfx.yay();
     burst(document.body, x, y, CONFETTI, 26, 150);
-    if (q.kind === 'pattern') document.querySelector('.blank')?.replaceChildren(q.answer.e);
+    if (q.kind === 'pattern') { const b = document.querySelector('.blank'); if (b) b.innerHTML = drawing(q.answer.e); }
     await talk([...choiceParts(q, value, lang), en(pickOne(PRAISE))], 1400);
     if (run === lessonRun) next();
     return;
@@ -378,7 +379,7 @@ async function finishLesson(): Promise<void> {
   if (run !== lessonRun) return;
   r.onclick = async () => {
     r.onclick = null;
-    r.innerHTML = `<div class="sticker-big">${sticker.e}</div><p class="reward-title">⭐ ${me.stars}</p>`;
+    r.innerHTML = `<div class="sticker-big">${drawing(sticker.e)}</div><p class="reward-title">⭐ ${me.stars}</p>`;
     const [x, y] = centerOf(r.querySelector('.sticker-big')!);
     burst(document.body, x, y, CONFETTI, 34, 180);
     sfx.yay();
@@ -402,7 +403,7 @@ async function finishLesson(): Promise<void> {
 
 function openBook(): void {
   $('stickers').innerHTML = STICKERS.map((s) =>
-    me.stickers.includes(s.e) ? `<button class="sticker" data-e="${s.e}">${s.e}</button>` : '<span class="sticker empty"></span>',
+    me.stickers.includes(s.e) ? `<button class="sticker" data-e="${s.e}">${drawing(s.e)}</button>` : '<span class="sticker empty"></span>',
   ).join('');
   $('book-count').textContent = `${me.stickers.length} / ${STICKERS.length}`;
   show('book');
@@ -415,7 +416,7 @@ function renderRoster(): void {
     players
       .map(
         (p) => `<div class="roster-row" data-id="${p.id}">
-          <button class="r-avatar" aria-label="Change animal">${p.avatar}</button>
+          <button class="r-avatar" aria-label="Change animal">${drawing(p.avatar)}</button>
           <input class="r-name" value="${esc(p.name)}" placeholder="Name" maxlength="14" />
           <span class="r-info">${Math.min(p.done, STOP_COUNT)}/${STOP_COUNT}</span>
           <button class="r-reset" aria-label="Start again">↺</button>
@@ -465,6 +466,8 @@ function init(): void {
   bindVoiceButton($('voice'));
   bindLangButtons($('lang'));
   bindKidsNav(back);
+  // Hoot, drawn.
+  for (const el of document.querySelectorAll<HTMLElement>('.hoot-hello, #hoot')) el.innerHTML = drawing('🦉');
   $('gear').addEventListener('click', renderRoster); // fills the editor as the panel opens
   bindRoster();
   lockGestures();

@@ -4,6 +4,7 @@ import { bindVoiceButton, say, sfx, stopSpeech, tone, unlock } from '../kids/aud
 import { burst, CONFETTI, party } from '../kids/fx';
 import { keepAwake, lockGestures } from '../kids/hold';
 import { bindKidsNav } from '../kids/nav';
+import { drawing } from '../kids/art';
 import { bindLangButtons, getLang } from '../kids/lang';
 import { syncOnOpen } from '../kids/sync';
 import {
@@ -80,7 +81,7 @@ function renderFarm(): void {
   stage().className = 'stage farm';
   stage().innerHTML = `<div class="spots">${SPOTS.map(
     (s) => `<button class="spot s-${s}" data-spot="${s}" aria-label="${s}">
-      <span class="animal">${ANIMAL_MAP[hidden[s]].emoji}</span>
+      <span class="animal">${drawing(ANIMAL_MAP[hidden[s]].emoji)}</span>
       ${COVER[s]}
       <span class="name"></span>
     </button>`,
@@ -93,7 +94,7 @@ function peek(spotEl: HTMLElement): void {
   const id = hidden[spot];
   open = spot;
   boing();
-  spotEl.querySelector('.animal')!.textContent = ANIMAL_MAP[id].emoji;
+  spotEl.querySelector('.animal')!.innerHTML = drawing(ANIMAL_MAP[id].emoji);
   spotEl.querySelector('.name')!.textContent = word(id);
   spotEl.classList.add('open');
   const [x, y] = centerOf(spotEl);
@@ -106,7 +107,7 @@ function peek(spotEl: HTMLElement): void {
     // Someone new hides there next time.
     hidden = rehide(hidden, spot, rng);
     setTimeout(() => {
-      spotEl.querySelector('.animal')!.textContent = ANIMAL_MAP[hidden[spot]].emoji;
+      spotEl.querySelector('.animal')!.innerHTML = drawing(ANIMAL_MAP[hidden[spot]].emoji);
     }, 400);
     if (found % PARTY_EVERY === 0) celebrate(() => {});
   }, 2600);
@@ -118,7 +119,7 @@ function quizRound(): void {
   quiz = newQuiz(wins, rng, quiz ?? undefined);
   stage().className = 'stage meadow';
   stage().innerHTML = `<div class="field">${quiz.animals
-    .map((id, i) => `<button class="critter" data-animal="${id}" style="animation-delay:${i * 90}ms"><span>${ANIMAL_MAP[id].emoji}</span><span class="name"></span></button>`)
+    .map((id, i) => `<button class="critter" data-animal="${id}" style="animation-delay:${i * 90}ms"><span>${drawing(ANIMAL_MAP[id].emoji)}</span><span class="name"></span></button>`)
     .join('')}</div>`;
   const ask = $('ask');
   ask.hidden = false;

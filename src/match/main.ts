@@ -5,6 +5,7 @@ import { bindLangButtons, getLang } from '../kids/lang';
 import { burst, CONFETTI, party } from '../kids/fx';
 import { keepAwake, lockGestures } from '../kids/hold';
 import { bindKidsNav } from '../kids/nav';
+import { drawing } from '../kids/art';
 import { syncOnOpen } from '../kids/sync';
 import {
   flip, gridFor, hideMiss, nameParts as namePartsOf, newMemory, newSame, PAIR_OPTIONS, PICS,
@@ -48,7 +49,7 @@ function showWord(i: number, x: number, y: number): void {
 
 function cardHtml(i: number, pic: number, up: boolean, extra = ''): string {
   return `<button class="card ${up ? 'up' : ''} ${extra}" data-i="${i}" aria-label="${up ? picOf(pic).name : 'card'}">
-    <span class="inner"><span class="face front">${picOf(pic).e}</span><span class="face cover"></span></span>
+    <span class="inner"><span class="face front">${drawing(picOf(pic).e)}</span><span class="face cover"></span></span>
   </button>`;
 }
 
