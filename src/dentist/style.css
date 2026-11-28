@@ -1,0 +1,87 @@
+@import '../kids/kids.css';
+
+/* A bright dentist's room: mint walls and the big lamp shining down. */
+body { background: linear-gradient(#7fd9cf, #b6ebe4 55%, #e4f7f3); }
+.lamp {
+  position: fixed; left: 50%; top: -30vh; width: 120vw; height: 90vh; transform: translateX(-50%); pointer-events: none;
+  background: radial-gradient(closest-side, rgba(255,255,240,.85), rgba(255,255,240,0));
+}
+
+/* Start screen */
+.modes.one { grid-template-columns: minmax(0, 1fr); width: min(360px, 80vw); }
+.m-play { background: #2aa89c; }
+.pic { position: relative; font-size: clamp(2.6rem, 13vw, 4.4rem); gap: 0; }
+.pic-b { margin-left: -.1em; transform: translateY(-.35em); font-size: .6em; }
+
+.stage {
+  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: space-between; gap: 6px;
+  padding: calc(14px + env(safe-area-inset-top)) 8px calc(12px + env(safe-area-inset-bottom)); touch-action: none;
+}
+
+/* The patient, peeking in at the top. */
+.patient {
+  --s: min(22vw, 13dvh, 110px); width: var(--s); height: var(--s); border-radius: 50%; display: grid; place-items: center;
+  background: #fff; box-shadow: 0 5px 0 rgba(0,0,0,.1); font-size: calc(var(--s) * .72); line-height: 1;
+  transform: translateY(-160%); transition: transform .5s cubic-bezier(.3,1.6,.5,1); flex: none;
+}
+.patient .face img.art { width: calc(var(--s) * .82); height: calc(var(--s) * .82); }
+.patient.in { transform: none; }
+.patient.happy .face { display: inline-block; animation: hop .5s ease-in-out 3; }
+.patient.happy::after { content: '✨'; position: absolute; margin: calc(var(--s) * -.55) 0 0 calc(var(--s) * .9); font-size: calc(var(--s) * .4); }
+@keyframes hop { 50% { transform: translateY(-14%) rotate(-6deg); } }
+
+/* The mouth */
+.mouth { flex: 1; min-height: 0; width: 100%; display: grid; place-items: center; }
+.mouth-svg {
+  height: auto; overflow: visible;
+  transform: scaleY(.08); transition: transform .6s cubic-bezier(.3,1.5,.5,1); filter: drop-shadow(0 10px 10px rgba(0,0,0,.15));
+}
+.mouth.open .mouth-svg { transform: none; }
+.germ-body { animation: germ .9s ease-in-out infinite alternate; transform-box: fill-box; transform-origin: center; }
+@keyframes germ { from { transform: translateY(-3px) rotate(-8deg); } to { transform: translateY(3px) rotate(8deg); } }
+.p-germ.gone { animation: germGone .5s ease-in forwards; transform-box: fill-box; transform-origin: center; }
+@keyframes germGone { to { transform: translateY(-60px) scale(.2) rotate(200deg); opacity: 0; } }
+.p-stuck .snack.out { animation: fallOut .6s ease-in forwards; }
+.p-stuck .snack { transition: none; }
+@keyframes fallOut { to { opacity: 0; } }
+.p-cavity.done .filling { animation: shineFill 1s ease-in-out 2; }
+@keyframes shineFill { 50% { filter: brightness(1.25); } }
+.mouth.shiny .tooth path:first-child { animation: toothShine 1.2s ease-in-out 2; }
+@keyframes toothShine { 50% { fill: #ffffff; filter: drop-shadow(0 0 6px #fff8c8); } }
+
+/* Tools */
+.tray {
+  flex: none; display: flex; gap: clamp(6px, 2vw, 14px); padding: 10px 12px; border-radius: 26px; background: rgba(255,255,255,.7);
+  box-shadow: 0 6px 0 rgba(0,0,0,.08);
+}
+.tool-btn {
+  --s: min(16vw, 10dvh, 84px); width: var(--s); height: var(--s); border-radius: 22px; border: 0; padding: 8px; background: #fff;
+  box-shadow: 0 5px 0 rgba(0,0,0,.12); transition: transform .15s;
+}
+.tool-btn svg { width: 100%; height: 100%; pointer-events: none; }
+.tool-btn.on { background: #fff6b8; box-shadow: 0 0 0 4px #f7b52d, 0 5px 0 rgba(0,0,0,.12); transform: translateY(-6px); }
+.tool-btn.pick-me { animation: pickMe .45s ease-in-out 4; }
+@keyframes pickMe { 25% { transform: translateY(-10px) rotate(-10deg) scale(1.12); } 75% { transform: translateY(-10px) rotate(10deg) scale(1.12); } }
+
+/* The tool in the hand: its tip is where the finger is. */
+.tool {
+  position: fixed; left: 0; top: 0; z-index: 7; pointer-events: none; width: 110px; height: 110px; margin: -104px 0 0 -6px;
+  filter: drop-shadow(0 10px 8px rgba(0,0,0,.25));
+}
+.tool svg { width: 100%; height: 100%; }
+.tool.t-brush { animation: scrub .22s ease-in-out infinite; }
+.tool.t-drill { animation: buzz .05s linear infinite; }
+@keyframes scrub { 50% { translate: 6px -6px; } }
+@keyframes buzz { 50% { translate: 1px -1px; } }
+
+.bub {
+  position: fixed; z-index: 6; width: var(--s); height: var(--s); border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle at 30% 30%, #fff 0 18%, rgba(255,255,255,.35) 20% 60%, rgba(160,210,255,.6));
+  box-shadow: inset 0 0 0 2px rgba(255,255,255,.8); animation: bubUp 1.2s ease-out forwards;
+}
+@keyframes bubUp { to { transform: translateY(-80px) scale(1.2); opacity: 0; } }
+.water {
+  position: fixed; z-index: 6; width: 8px; height: 8px; margin: -4px; border-radius: 50%; pointer-events: none;
+  background: #6cc2f0; animation: splash .5s ease-out forwards;
+}
+@keyframes splash { to { transform: translate(var(--dx), var(--dy)); opacity: 0; } }

@@ -23,6 +23,7 @@ export default defineConfig({
         trail: resolve(import.meta.dirname, 'trail/index.html'),
         band: resolve(import.meta.dirname, 'band/index.html'),
         care: resolve(import.meta.dirname, 'care/index.html'),
+        dentist: resolve(import.meta.dirname, 'dentist/index.html'),
       },
     },
   },

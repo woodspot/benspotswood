@@ -5,7 +5,7 @@ import os
 GAMES = {
   'phone': ('📱', '#5aa9f0'), 'balloons': ('🎈', '#5aa9f0'), 'match': ('🃏', '#4fb38a'),
   'barnyard': ('🐮', '#6cc2f0'), 'kids': ('🧸', '#3f8fe0'), 'trail': ('🦉', '#3a9a5b'), 'abc': ('🔤', '#7b5cd6'), 'skyhold': ('🎈', '#1a2050'), 'skyarmada': ('🛩️', '#141826'),
-  'band': ('🥁', '#5b3fb5'), 'care': ('🛁', '#4fb8d8'),
+  'band': ('🥁', '#5b3fb5'), 'care': ('🛁', '#4fb8d8'), 'dentist': ('🦷', '#3cc0b4'),
 }
 FONT = 'C:/Windows/Fonts/seguiemj.ttf'
 for game, (emoji, bg) in GAMES.items():

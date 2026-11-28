@@ -13,6 +13,7 @@ import { LETTERS, meetParts as letterParts, questionParts as findParts } from '.
 import { allTrailPhrases } from '../trail/game';
 import { allBandPhrases } from '../band/game';
 import { allCarePhrases } from '../care/game';
+import { allDentistPhrases } from '../dentist/game';
 
 const LANGS: Lang[] = ['en', 'es'];
 
@@ -87,7 +88,7 @@ function abc(): Part[] {
 /** Every phrase, once each. */
 export function allPhrases(): Part[] {
   const seen = new Map<string, Part>();
-  for (const p of [...shared(), ...balloons(), ...match(), ...phone(), ...skyArmada(), ...barnyard(), ...abc(), ...allTrailPhrases(), ...allBandPhrases(), ...allCarePhrases()]) {
+  for (const p of [...shared(), ...balloons(), ...match(), ...phone(), ...skyArmada(), ...barnyard(), ...abc(), ...allTrailPhrases(), ...allBandPhrases(), ...allCarePhrases(), ...allDentistPhrases()]) {
     const key = clipKey(p);
     if (p.text && !seen.has(key)) seen.set(key, { text: p.text, lang: p.lang, voice: p.voice ?? 'female' });
   }

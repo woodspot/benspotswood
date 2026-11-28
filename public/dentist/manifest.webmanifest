@@ -1,0 +1,22 @@
+{
+  "name": "Dentist",
+  "short_name": "Dentist",
+  "start_url": "/dentist/",
+  "scope": "/dentist/",
+  "display": "standalone",
+  "background_color": "#3cc0b4",
+  "theme_color": "#3cc0b4",
+  "icons": [
+    {
+      "src": "/dentist/icon-180.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    },
+    {
+      "src": "/dentist/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "orientation": "any"
+}
