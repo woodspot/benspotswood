@@ -97,7 +97,7 @@ body { background: radial-gradient(120% 80% at 50% 0%, #7d5ee0, #4b2f9e 55%, #2a
 @keyframes hopUp2 { 40% { transform: translateY(-18%); } }
 @keyframes groove2 { 50% { transform: translateY(-8%) rotate(6deg); } }
 .copy.demo .bars { pointer-events: none; }
-.dots, .song-dots { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; max-width: 92%; }
+.dots { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; max-width: 92%; }
 .dots i { width: 26px; height: 26px; border-radius: 50%; background: rgba(255,255,255,.25); box-shadow: inset 0 0 0 3px rgba(255,255,255,.5); transition: background .2s, transform .2s; }
 .dots i.on { background: #ffd34d; transform: scale(1.15); }
 
@@ -111,5 +111,5 @@ body { background: radial-gradient(120% 80% at 50% 0%, #7d5ee0, #4b2f9e 55%, #2a
 .song-pick small { font-size: calc(var(--s) * .14); font-weight: 900; pointer-events: none; }
 .song-pick:active { transform: translateY(5px); box-shadow: 0 3px 0 rgba(0,0,0,.25); }
 .song-title { font-size: min(16vw, 11dvh, 90px); line-height: 1; }
-.song-dots i { width: 14px; height: 14px; border-radius: 50%; background: rgba(255,255,255,.22); }
-.song-dots i.on { background: var(--c); box-shadow: 0 0 0 2px #fff; }
+.song-track { width: min(80vw, 420px); height: 14px; border-radius: 99px; background: rgba(255,255,255,.22); overflow: hidden; }
+.song-track i { display: block; height: 100%; width: 0; border-radius: 99px; background: linear-gradient(90deg, #ec4038, #f7cf2d, #3fbf5a, #3a7ff0, #9b5de5); transition: width .2s; }

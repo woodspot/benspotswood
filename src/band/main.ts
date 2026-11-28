@@ -9,8 +9,8 @@ import { bindLangButtons, getLang } from '../kids/lang';
 import { syncOnOpen } from '../kids/sync';
 import { soundUrl } from '../kids/sounds';
 import {
-  BAR_COLORS, BAR_NOTES, barsFor, DRUM_RIFF, INSTRUMENTS, instrumentParts, newTune, PRAISE, RIFFS, SAY, SONGS, songParts,
-  type Instrument, type Song,
+  BAR_COLORS, BAR_NOTES, barsFor, chordAt, CHORDS, DRUM_RIFF, INSTRUMENTS, instrumentParts, newTune, noteStarts, PRAISE, RIFFS, SAY,
+  SONGS, songParts, type ChordName, type Instrument, type Song,
 } from './game';
 import { beatOn, playDrum, playMaracas, playNote, setBeat } from './synth';
 
@@ -222,7 +222,18 @@ function copyTap(b: number): void {
 // ── Songs ──────────────────────────────────────────────────────
 
 let song: Song | null = null;
+let starts: number[] = [];
 let pos = 0;
+
+/** The soft chord under the tune: a low guitar note and the piano. */
+function playChord(c: ChordName, at = 0, vol = 1): void {
+  const ch = CHORDS[c];
+  playNote('guitar', ch.bass, at, 0.55 * vol);
+  for (const m of ch.piano) playNote('piano', m, at, 0.22 * vol);
+}
+
+/** Which chord box this note falls in (a new box means a new chord to play). */
+const chordSlot = (s: Song, k: number) => Math.floor(starts[k] / s.chordBeats + 1e-6);
 
 function songMenu(): void {
   song = null;
@@ -236,11 +247,12 @@ function songMenu(): void {
 
 function startSong(s: Song): void {
   song = s;
+  starts = noteStarts(s);
   pos = 0;
   $('ask').hidden = false;
   stage().className = 'stage songs playing';
   stage().innerHTML = `<div class="song-title">${drawing(s.e)}</div>
-    <div class="song-dots">${s.bars.map((b) => `<i style="--c:${BAR_COLORS[b]}"></i>`).join('')}</div>${barsHtml(8)}`;
+    <div class="song-track"><i></i></div>${barsHtml(8)}`;
   void talk([...songParts(s, getLang()), en(SAY.shine)]);
   shine();
 }
@@ -249,7 +261,8 @@ function shine(): void {
   if (!song) return;
   stage().querySelectorAll('.bar.shine').forEach((b) => b.classList.remove('shine'));
   barEl(song.bars[pos])?.classList.add('shine');
-  stage().querySelectorAll('.song-dots i').forEach((d, k) => d.classList.toggle('on', k < pos));
+  const fill = stage().querySelector<HTMLElement>('.song-track i');
+  if (fill) fill.style.width = `${(100 * pos) / song.bars.length}%`;
 }
 
 function songTap(b: number): void {
@@ -261,19 +274,46 @@ function songTap(b: number): void {
     return;
   }
   strike(b);
+  // The chord underneath, whenever it changes (or a new bar of music begins).
+  if (pos === 0 || chordSlot(song, pos) !== chordSlot(song, pos - 1)) playChord(chordAt(song, starts[pos]), 0, 0.8);
   pos++;
   shine();
   if (pos < song.bars.length) return;
   void finishSong(song);
 }
 
+/** The whole song, in time, with the chords: resolves when finished (or stopped). */
+async function playSong(s: Song, my: number): Promise<boolean> {
+  const beat = 60 / s.bpm;
+  const t0 = performance.now();
+  const fill = stage().querySelector<HTMLElement>('.song-track i');
+  let slot = -1;
+  for (let k = 0; k < s.notes.length; k++) {
+    const due = t0 + starts[k] * beat * 1000;
+    const ahead = due - performance.now();
+    if (ahead > 0) await wait(ahead);
+    if (my !== run) return false;
+    // Chords on every chord box, even under long notes.
+    const end = starts[k] + s.notes[k].beats;
+    for (let c = Math.floor(starts[k] / s.chordBeats + 1e-6); c * s.chordBeats < end - 1e-6; c++) {
+      if (c <= slot) continue;
+      slot = c;
+      playChord(s.chords[Math.min(c, s.chords.length - 1)], Math.max(0, c * s.chordBeats - starts[k]) * beat);
+    }
+    strike(s.notes[k].bar);
+    if (fill) fill.style.width = `${(100 * (k + 1)) / s.notes.length}%`;
+  }
+  await wait(s.notes[s.notes.length - 1].beats * beat * 1000);
+  return my === run;
+}
+
 async function finishSong(s: Song): Promise<void> {
   busy = true;
   const my = run;
   stage().querySelectorAll('.bar.shine').forEach((x) => x.classList.remove('shine'));
-  await wait(600);
-  // Now the whole song, all together, to hear what they played.
-  if (!(await playBars(s.bars, 420, my))) return;
+  await wait(700);
+  // Now the whole song, in time, to hear what they played.
+  if (!(await playSong(s, my))) return;
   if (s.sound && soundUrl(s.sound)) await talk([{ ...en('Moo!'), sound: s.sound }], 600, 4000);
   if (my !== run) return;
   busy = false;

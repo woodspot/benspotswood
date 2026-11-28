@@ -72,31 +72,112 @@ export function newTune(wins: number, rng: Rng): number[] {
 
 // ── Songs (traditional tunes) ──────────────────────────────────
 
+/** One note of a song: which bar, and how long it lasts (in beats). */
+export interface SongNote {
+  bar: number;
+  beats: number;
+}
+
 export interface Song {
   id: string;
   e: string; // its picture
   name: { en: string; es: string };
-  bars: number[]; // bar indexes (0 = C … 7 = high C)
+  notes: SongNote[];
+  bars: number[]; // just the bars, in order (0 = C … 7 = high C)
+  bpm: number; // how fast it goes when the band plays it back
+  chordBeats: number; // each chord lasts this many beats
+  chords: ChordName[]; // the soft piano and guitar underneath
   sound?: string; // an animal's real sound to finish with (Old MacDonald's cow)
 }
 
+export type ChordName = 'C' | 'F' | 'G' | 'D';
+/** Each chord: a low guitar note and three soft piano notes. */
+export const CHORDS: Record<ChordName, { bass: number; piano: number[] }> = {
+  C: { bass: 48, piano: [55, 60, 64] },
+  F: { bass: 41, piano: [57, 60, 65] },
+  G: { bass: 43, piano: [55, 59, 62] },
+  D: { bass: 50, piano: [57, 62, 66] },
+};
+
+const LETTERS = 'CDEFGABc';
+/**
+ * A tune written as letters (C D E F G A B, c = high C), each with an optional length in beats
+ * after a colon: "C C G G A A G:2". Fractions are fine: "E:2/3 D:1/3".
+ */
+export function parseTune(text: string): SongNote[] {
+  return text
+    .split(/\s+/)
+    .filter((t) => t && t !== '|')
+    .map((t) => {
+      const [l, len] = t.split(':');
+      const bar = LETTERS.indexOf(l);
+      if (bar < 0) throw new Error(`Not a note: ${t}`);
+      let beats = 1;
+      if (len) {
+        const [a, b] = len.split('/');
+        beats = Number(a) / (b ? Number(b) : 1);
+      }
+      return { bar, beats };
+    });
+}
+
+function song(s: Omit<Song, 'notes' | 'bars' | 'chords'> & { tune: string; chords: string }): Song {
+  const { tune, chords, ...rest } = s;
+  const notes = parseTune(tune);
+  return { ...rest, notes, bars: notes.map((n) => n.bar), chords: chords.split(/\s+/).filter((c) => c && c !== '|') as ChordName[] };
+}
+
+/** When each note starts, in beats from the beginning. */
+export function noteStarts(s: Song): number[] {
+  let t = 0;
+  return s.notes.map((n) => {
+    const at = t;
+    t += n.beats;
+    return at;
+  });
+}
+export const songBeats = (s: Song) => s.notes.reduce((t, n) => t + n.beats, 0);
+/** The chord playing at this beat. */
+export const chordAt = (s: Song, beat: number): ChordName => s.chords[Math.min(s.chords.length - 1, Math.floor(beat / s.chordBeats + 1e-6))];
+
 export const SONGS: Song[] = [
-  {
-    id: 'twinkle', e: '⭐', name: { en: 'Twinkle, Twinkle, Little Star', es: 'Estrellita' },
-    bars: [0, 0, 4, 4, 5, 5, 4, 3, 3, 2, 2, 1, 1, 0],
-  },
-  {
-    id: 'lamb', e: '🐑', name: { en: 'Mary Had a Little Lamb', es: 'María tenía un corderito' },
-    bars: [2, 1, 0, 1, 2, 2, 2, 1, 1, 1, 2, 4, 4, 2, 1, 0, 1, 2, 2, 2, 2, 1, 1, 2, 1, 0],
-  },
-  {
-    id: 'boat', e: '⛵', name: { en: 'Row, Row, Row Your Boat', es: 'Rema, rema, rema' },
-    bars: [0, 0, 0, 1, 2, 2, 1, 2, 3, 4, 7, 7, 7, 4, 4, 4, 2, 2, 2, 0, 0, 0, 4, 3, 2, 1, 0],
-  },
-  {
-    id: 'farm', e: '🐮', name: { en: 'Old MacDonald Had a Farm', es: 'La granja del viejo MacDonald' },
-    bars: [0, 0, 0, 4, 5, 5, 4, 2, 2, 1, 1, 0], sound: 'cow',
-  },
+  song({
+    id: 'twinkle', e: '⭐', name: { en: 'Twinkle, Twinkle, Little Star', es: 'Estrellita' }, bpm: 100, chordBeats: 2,
+    tune: `C C G G A A G:2 | F F E E D D C:2 |
+           G G F F E E D:2 | G G F F E E D:2 |
+           C C G G A A G:2 | F F E E D D C:2`,
+    chords: `C C F C | F C G C | C G C G | C G C G | C C F C | F C G C`,
+  }),
+  song({
+    id: 'lamb', e: '🐑', name: { en: 'Mary Had a Little Lamb', es: 'María tenía un corderito' }, bpm: 112, chordBeats: 4,
+    tune: `E D C D | E E E:2 | D D D:2 | E G G:2 |
+           E D C D | E E E E | D D E D | C:4 |
+           E D C D | E E E:2 | D D D:2 | E G G:2 |
+           E D C D | E E E E | D D E D | C:4`,
+    chords: `C C G C C C G C | C C G C C C G C`,
+  }),
+  song({
+    // In 6/8: one beat here is a dotted quarter, so a quick note is a third of a beat.
+    id: 'boat', e: '⛵', name: { en: 'Row, Row, Row Your Boat', es: 'Rema, rema, rema' }, bpm: 66, chordBeats: 2,
+    tune: `C C | C:2/3 D:1/3 E | E:2/3 D:1/3 E:2/3 F:1/3 | G:2 |
+           c:1/3 c:1/3 c:1/3 G:1/3 G:1/3 G:1/3 | E:1/3 E:1/3 E:1/3 C:1/3 C:1/3 C:1/3 |
+           G:2/3 F:1/3 E:2/3 D:1/3 | C:2 |
+           C C | C:2/3 D:1/3 E | E:2/3 D:1/3 E:2/3 F:1/3 | G:2 |
+           c:1/3 c:1/3 c:1/3 G:1/3 G:1/3 G:1/3 | E:1/3 E:1/3 E:1/3 C:1/3 C:1/3 C:1/3 |
+           G:2/3 F:1/3 E:2/3 D:1/3 | C:2`,
+    chords: `C C C C C C G C | C C C C C C G C`,
+  }),
+  song({
+    // In G: it starts on G and dips down to the low D, like the real song.
+    id: 'farm', e: '🐮', name: { en: 'Old MacDonald Had a Farm', es: 'La granja del viejo MacDonald' }, bpm: 126, chordBeats: 2,
+    tune: `G G G D | E E D:2 | B B A A | G:3 D |
+           G G G D | E E D:2 | B B A A | G:3 D:1/2 D:1/2 |
+           G G G D:1/2 D:1/2 | G G G:2 |
+           G:1/2 G:1/2 G G:1/2 G:1/2 G | G:1/2 G:1/2 G:1/2 G:1/2 G G |
+           G G G D | E E D:2 | B B A A | G:4`,
+    chords: `G G C G D D G G | G G C G D D G G | G G G G G G G G | G G C G D D G G`,
+    sound: 'cow',
+  }),
 ];
 
 /** The song's name, said in the chosen language. */
