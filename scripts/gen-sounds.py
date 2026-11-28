@@ -87,9 +87,12 @@ def main() -> None:
             if only and sid not in only:
                 continue
             try:
-                src = Path(tmp) / (sid + Path(s['src'].split('?')[0]).suffix)
-                with urllib.request.urlopen(urllib.request.Request(s['src'], headers=UA), timeout=60) as r:
-                    src.write_bytes(r.read())
+                if s['src'].startswith('http'):
+                    src = Path(tmp) / (sid + Path(s['src'].split('?')[0]).suffix)
+                    with urllib.request.urlopen(urllib.request.Request(s['src'], headers=UA), timeout=60) as r:
+                        src.write_bytes(r.read())
+                else:  # a file kept in the repo (scripts/sound-src/)
+                    src = Path(s['src'])
                 y = level(best_stretch(decode(src), s['max']), s.get('gain', 1.0))
                 dest = OUT / f'{sid}.mp3'
                 encode(y, dest)
@@ -99,7 +102,7 @@ def main() -> None:
                 failed.append(sid)
     lines = ['Animal sounds used in Barnyard and the Toy Phone (trimmed and levelled):', '']
     for sid, s in sounds.items():
-        lines.append(f"{sid}: \"{s['title']}\" by {s['by']}, {s['licence']}, {s['page']}")
+        lines.append(f"{sid}: \"{s['title']}\" by {s['by']}, {s['licence']}" + (f", {s['page']}" if s.get('page') else ''))
     Path('public/sounds').mkdir(parents=True, exist_ok=True)
     (Path('public/sounds') / 'CREDITS.txt').write_text('\n'.join(lines) + '\n', encoding='utf-8')
     if failed:
