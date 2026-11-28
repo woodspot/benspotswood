@@ -10,6 +10,7 @@ import { CAPTAINS } from '../keepfall/captains';
 import { ANIMALS, meetParts, questionParts } from '../barn/game';
 import { BOSSES } from '../keepfall/campaign';
 import { LETTERS, meetParts as letterParts, questionParts as findParts } from '../abc/game';
+import { allTrailPhrases } from '../trail/game';
 
 const LANGS: Lang[] = ['en', 'es'];
 
@@ -81,7 +82,7 @@ function abc(): Part[] {
 /** Every phrase, once each. */
 export function allPhrases(): Part[] {
   const seen = new Map<string, Part>();
-  for (const p of [...shared(), ...balloons(), ...match(), ...phone(), ...skyArmada(), ...barnyard(), ...abc()]) {
+  for (const p of [...shared(), ...balloons(), ...match(), ...phone(), ...skyArmada(), ...barnyard(), ...abc(), ...allTrailPhrases()]) {
     const key = clipKey(p);
     if (p.text && !seen.has(key)) seen.set(key, { text: p.text, lang: p.lang, voice: p.voice ?? 'female' });
   }

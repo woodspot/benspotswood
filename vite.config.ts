@@ -20,6 +20,7 @@ export default defineConfig({
         abc: resolve(import.meta.dirname, 'abc/index.html'),
         skyhold: resolve(import.meta.dirname, 'skyhold/index.html'),
         kids: resolve(import.meta.dirname, 'kids/index.html'),
+        trail: resolve(import.meta.dirname, 'trail/index.html'),
       },
     },
   },

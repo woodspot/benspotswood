@@ -26,10 +26,10 @@ export function askGrownUp(pass: () => void, from?: Element | null): void {
       </div>
     </div>`;
   const $ = <T extends HTMLElement>(s: string) => el.querySelector(s) as T;
-  let p = problem();
+  const p = problem();
   let typed = '';
   let idle = 0;
-  const show = () => {
+  const show = (): void => {
     $('.gate-sum').textContent = p.text;
     $('.gate-ans').textContent = typed || '?';
   };
@@ -48,14 +48,8 @@ export function askGrownUp(pass: () => void, from?: Element | null): void {
       pass();
       return;
     }
-    // Wrong: shake and ask a different sum, so guessing doesn't get anywhere.
-    const box = $('.gate-box');
-    box.classList.remove('shake');
-    void box.offsetWidth;
-    box.classList.add('shake');
-    p = problem();
-    typed = '';
-    show();
+    // Wrong: just close, as if nothing happened. Little fingers get nowhere; a grown-up taps ⚙️ again.
+    close();
   };
   el.addEventListener('pointerdown', (e) => e.stopPropagation());
   el.addEventListener('click', (e) => {

@@ -5,8 +5,9 @@ A small games site. Each game lives in its own folder and is served at `games.be
 | Path | What |
 |---|---|
 | `index.html`, `src/hub/` | Hub page listing the games |
-| `kids/index.html`, `src/kidshub/` | **Kids' Games**: the page toddlers pick a game from (Balloon Pop, Match It!, Barnyard, ABC, Toy Phone). In each game ⬅ goes back (game → its start screen → Kids' Games); ⚙️ asks a grown-up sum, then shows settings (`src/kids/nav.ts`, `gate.ts`) |
+| `kids/index.html`, `src/kidshub/` | **Kids' Games**: the page toddlers pick a game from (Hoot's Trail, Balloon Pop, Match It!, Barnyard, ABC, Toy Phone). In each game ⬅ goes back (game → its start screen → Kids' Games); ⚙️ asks a grown-up sum, then shows settings (`src/kids/nav.ts`, `gate.ts`) |
 | `keepfall/index.html`, `src/keepfall/` | **Keepfall**, a turn-based castle card battle |
+| `trail/index.html`, `src/trail/` | **Hoot's Trail**: a learning trail for ages 2–5. Four worlds of ten stops (letters, first sounds, counting, colours, shapes, big/small, patterns, dot-to-dot); each stop earns a sticker. Every player (twins!) has their own trail |
 
 ## Working on it
 
