@@ -1,0 +1,15 @@
+Animal sounds used in Barnyard and the Toy Phone (trimmed and levelled):
+
+cow: "Cow moos #3" by Joseph Sardin, BigSoundBank, CC0, https://bigsoundbank.com/cow-moos-3-s2383.html
+sheep: "Sheep #1" by Joseph Sardin, BigSoundBank, CC0, https://bigsoundbank.com/sheep-1-s2343.html
+horse: "Neighing of a horse #1" by Joseph Sardin, BigSoundBank, CC0, https://bigsoundbank.com/neighing-of-a-horse-1-s0284.html
+chicken: "Hens lays" by Joseph Sardin, BigSoundBank, CC0, https://bigsoundbank.com/hens-lays-s0978.html
+duck: "Ducks" by Joseph Sardin, BigSoundBank, CC0, https://bigsoundbank.com/ducks-s0276.html
+dog: "Barking dog #3" by Joseph Sardin, BigSoundBank, CC0, https://bigsoundbank.com/barking-dog-3-s2955.html
+cat: "Meow cat #3" by Joseph Sardin, BigSoundBank, CC0, https://bigsoundbank.com/meow-cat-3-s1891.html
+goat: "Bleating goat #1" by Joseph Sardin, BigSoundBank, CC0, https://bigsoundbank.com/bleating-goat-1-s0279.html
+rooster: "Song of rooster" by Joseph Sardin, BigSoundBank, CC0, https://bigsoundbank.com/song-of-rooster-s0283.html
+frog: "One frog" by Joseph Sardin, BigSoundBank, CC0, https://bigsoundbank.com/one-frog-s0819.html
+owl: "Tawny owl #1" by Joseph Sardin, BigSoundBank, CC0, https://bigsoundbank.com/tawny-owl-1-s1763.html
+bee: "Bumblebee #1" by Joseph Sardin, BigSoundBank, CC0, https://bigsoundbank.com/bumblebee-1-s1000.html
+lion: "Lionroar.wav (trimmed, softened)" by Jonathan Growcott, Alex Lobora, Andrew Markham, Charlotte E. Searle, Johan Wahlström, Matthew Wijers, Benno I. Simmons, CC BY 4.0, https://commons.wikimedia.org/wiki/File:Lionroar.wav
