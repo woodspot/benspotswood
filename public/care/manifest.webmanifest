@@ -1,0 +1,22 @@
+{
+  "name": "Pet Care",
+  "short_name": "Pet Care",
+  "start_url": "/care/",
+  "scope": "/care/",
+  "display": "standalone",
+  "background_color": "#4fb8d8",
+  "theme_color": "#4fb8d8",
+  "icons": [
+    {
+      "src": "/care/icon-180.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    },
+    {
+      "src": "/care/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "orientation": "any"
+}

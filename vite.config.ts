@@ -21,6 +21,8 @@ export default defineConfig({
         skyhold: resolve(import.meta.dirname, 'skyhold/index.html'),
         kids: resolve(import.meta.dirname, 'kids/index.html'),
         trail: resolve(import.meta.dirname, 'trail/index.html'),
+        band: resolve(import.meta.dirname, 'band/index.html'),
+        care: resolve(import.meta.dirname, 'care/index.html'),
       },
     },
   },

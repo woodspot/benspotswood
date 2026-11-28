@@ -2,6 +2,7 @@
 // pops out, makes its sound and says its name. Who says?: find the animal that says "moo".
 import { bindVoiceButton, say, sfx, stopSpeech, tone, unlock } from '../kids/audio';
 import { burst, CONFETTI, party } from '../kids/fx';
+import { awardSticker } from '../kids/stickers';
 import { keepAwake, lockGestures } from '../kids/hold';
 import { bindKidsNav } from '../kids/nav';
 import { drawing } from '../kids/art';
@@ -57,10 +58,10 @@ function celebrate(then: () => void): void {
   busy = true;
   sfx.fanfare();
   say('Hooray!');
-  party($('party'), stage(), () => {
+  party($('party'), stage(), () => awardSticker(() => {
     busy = false;
     then();
-  });
+  }));
 }
 
 // ── Peek ───────────────────────────────────────────────────────

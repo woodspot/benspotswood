@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#4fb8d8" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="Pet Care" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Pet Care</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="/care/icon-180.png" />
+  <link rel="manifest" href="/care/manifest.webmanifest" />
+  <link rel="stylesheet" href="/src/care/style.css" />
+</head>
+<body>
+  <div class="tiles" aria-hidden="true"></div>
+
+  <section id="menu" class="menu">
+    <a class="back" href="/kids/" aria-label="Back to the games">⬅</a>
+    <button id="gear" class="gear" aria-label="Grown-ups: settings">⚙️</button>
+    <h1>Pet <span>Care</span></h1>
+    <div class="modes" id="modes">
+      <button class="mode m-bath" data-mode="bath">
+        <span class="pic"><span class="pic-a">🐷</span><span class="pic-b">🫧</span></span>
+        <span class="lbl">Bath time</span>
+      </button>
+      <button class="mode m-meal" data-mode="meal">
+        <span class="pic"><span class="pic-a">🐰</span><span class="pic-b">🥕</span></span>
+        <span class="lbl">Meal time</span>
+      </button>
+    </div>
+    <div id="grown" class="grown" hidden>
+      <div class="grown-box" role="dialog" aria-label="Settings">
+        <p class="gate-title">Settings</p>
+        <div class="settings"><div class="lang" id="lang"></div><button id="voice" class="voice-btn"></button></div>
+        <a class="grown-link" href="/">All games (grown-ups) →</a>
+        <p class="tip">Bath time: rub anywhere with a finger to scrub (each mud spot is counted), hold the shower over the bubbles, then rub dry.
+          Meal time: drag each food to the animal that eats it.</p>
+        <button class="grown-done">Done</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="game" hidden>
+    <div id="stage" class="stage"></div>
+    <button id="home" class="home" aria-label="Back">⬅</button>
+    <div id="party" class="party" hidden><div class="big-star">⭐</div></div>
+  </section>
+
+  <script type="module" src="/src/care/main.ts"></script>
+</body>
+</html>

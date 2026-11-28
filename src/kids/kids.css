@@ -119,3 +119,25 @@ html.turn-270 #app { transform: rotate(90deg) translateY(-100%); }
 /* Storybook drawings (src/kids/art.ts) stand in for emoji at the same size. */
 img.art { width: 1.15em; height: 1.15em; object-fit: contain; vertical-align: middle; pointer-events: none; -webkit-user-drag: none; }
 .tip a { color: inherit; }
+
+/* ── A sticker won (stickers.ts, and Hoot's Trail) ── */
+.reward {
+  position: fixed; inset: 0; z-index: 9; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+  background: radial-gradient(circle, rgba(255,240,170,.95), rgba(255,190,80,.95));
+}
+.present { font-size: min(45vmin, 240px); animation: shake 1.2s ease-in-out infinite; cursor: pointer; }
+@keyframes shake { 0%, 60%, 100% { transform: rotate(0); } 70% { transform: rotate(-10deg) scale(1.05); } 80% { transform: rotate(10deg) scale(1.05); } 90% { transform: rotate(-6deg); } }
+.sticker-big { font-size: min(50vmin, 280px); animation: popin .6s cubic-bezier(.2,1.6,.4,1); filter: drop-shadow(0 10px 18px rgba(0,0,0,.25)); }
+@keyframes popin { from { transform: scale(0) rotate(-40deg); } }
+.reward-title { margin: 0; font-size: 2.4rem; font-weight: 900; color: #8a4b08; }
+.tap-on { margin: 0; font-size: 3rem; animation: bob 1.2s ease-in-out infinite; }
+
+@keyframes bob { 50% { transform: translateY(-10px) rotate(-4deg); } }
+.who { display: flex; flex-wrap: wrap; justify-content: center; gap: 16px; }
+.who-btn {
+  border: 0; width: min(36vw, 150px); aspect-ratio: 1; border-radius: 30px; background: #fff; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; font-size: min(18vw, 80px); box-shadow: 0 8px 0 rgba(0,0,0,.15);
+}
+.who-btn small { font-size: 1.1rem; font-weight: 800; color: #8a4b08; }
+.who-btn:active { transform: translateY(4px); box-shadow: 0 4px 0 rgba(0,0,0,.15); }
+.in-book { margin: 0; font-size: 2.6rem; font-weight: 800; color: #8a4b08; display: flex; align-items: center; gap: 8px; }

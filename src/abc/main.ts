@@ -1,6 +1,7 @@
 // ABC: tap any letter to see it big and hear it ("B! Ball!"), or play Find it! ("Find the letter B!").
 import { bindVoiceButton, preload, say, sfx, stopSpeech, unlock } from '../kids/audio';
 import { burst, CONFETTI, party } from '../kids/fx';
+import { awardSticker } from '../kids/stickers';
 import { keepAwake, lockGestures } from '../kids/hold';
 import { bindKidsNav } from '../kids/nav';
 import { drawing } from '../kids/art';
@@ -46,10 +47,10 @@ function celebrate(then: () => void): void {
   busy = true;
   sfx.fanfare();
   say('Hooray!');
-  party($('party'), stage(), () => {
+  party($('party'), stage(), () => awardSticker(() => {
     busy = false;
     then();
-  });
+  }));
 }
 
 const tile = (ch: string, i: number) =>

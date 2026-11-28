@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#5b3fb5" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="Band" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Band</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="/band/icon-180.png" />
+  <link rel="manifest" href="/band/manifest.webmanifest" />
+  <link rel="stylesheet" href="/src/band/style.css" />
+</head>
+<body>
+  <div class="lights" aria-hidden="true"><i></i><i></i><i></i></div>
+
+  <section id="menu" class="menu">
+    <a class="back" href="/kids/" aria-label="Back to the games">⬅</a>
+    <button id="gear" class="gear" aria-label="Grown-ups: settings">⚙️</button>
+    <h1>The <span>Band</span></h1>
+    <div class="modes" id="modes">
+      <button class="mode m-band" data-mode="band">
+        <span class="pic"><span class="pic-a">🐻</span><span class="pic-b">🥁</span></span>
+        <span class="lbl">Play!</span>
+      </button>
+      <button class="mode m-copy" data-mode="copy">
+        <span class="pic"><span class="pic-a">🐰</span><span class="mini-bars"><i></i><i></i><i></i><i></i></span></span>
+        <span class="lbl">Copy me</span>
+      </button>
+      <button class="mode m-songs" data-mode="songs">
+        <span class="pic"><span class="pic-a">⭐</span><span class="pic-note">♫</span></span>
+        <span class="lbl">Songs</span>
+      </button>
+    </div>
+    <div id="grown" class="grown" hidden>
+      <div class="grown-box" role="dialog" aria-label="Settings">
+        <p class="gate-title">Settings</p>
+        <div class="settings"><div class="lang" id="lang"></div><button id="voice" class="voice-btn"></button></div>
+        <a class="grown-link" href="/">All games (grown-ups) →</a>
+        <p class="tip">Play: every instrument plays from the same five notes, so any taps sound good together; 🎶 adds a beat.
+          Copy me: the tunes get longer as they get them right. Songs: tap the shining bar.</p>
+        <button class="grown-done">Done</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="game" hidden>
+    <div id="stage" class="stage"></div>
+    <button id="home" class="home" aria-label="Back">⬅</button>
+    <button id="beat" class="beat" aria-label="Play a beat" hidden>🎶</button>
+    <button id="ask" class="ask" aria-label="Hear it again" hidden>🔊</button>
+    <div id="party" class="party" hidden><div class="big-star">⭐</div></div>
+  </section>
+
+  <script type="module" src="/src/band/main.ts"></script>
+</body>
+</html>

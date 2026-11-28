@@ -2,6 +2,7 @@
 // a shape or a number of pops. Every tap pops something, and nothing ever goes wrong.
 import { bindVoiceButton, sfx, say, stopSpeech, unlock } from '../kids/audio';
 import { burst, CONFETTI, party } from '../kids/fx';
+import { awardSticker } from '../kids/stickers';
 import { keepAwake, lockGestures } from '../kids/hold';
 import { bindKidsNav } from '../kids/nav';
 import { syncOnOpen } from '../kids/sync';
@@ -216,12 +217,12 @@ function celebrate(): void {
   paused = true;
   sfx.fanfare();
   say('Hooray!');
-  party($('party'), stage(), () => {
+  party($('party'), stage(), () => awardSticker(() => {
     paused = false;
     renderTarget(session.target);
     // Counting carries straight on after the party; the others ask for the next thing.
     if (session.target.kind !== 'any' && session.target.kind !== 'count') say(promptParts(session.target, getLang()));
-  });
+  }));
 }
 
 // ── The target chip: shows what to find, tap it to hear it again ──

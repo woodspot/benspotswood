@@ -82,5 +82,22 @@
   "👟": ["shoe", "child's sneaker"],
   "⭐": ["star", "yellow star"],
   "🎈": ["balloon", "red balloon with a string"],
-  "🌳": ["tree", "round green tree"]
+  "🌳": ["tree", "round green tree"],
+  "🥁": ["drum", "toy drum with red sides and two drumsticks"],
+  "🎹": ["piano", "small red toy piano with white and black keys"],
+  "🎸": ["guitar", "wooden acoustic guitar"],
+  "🎺": ["trumpet", "shiny golden trumpet"],
+  "🪇": ["maracas", "pair of colourful striped maracas"],
+  "🛁": ["bathtub", "white bathtub on little feet, full of soap bubbles"],
+  "🧽": ["sponge", "yellow bath sponge with a few soap bubbles"],
+  "🚿": ["shower", "silver hand-held shower head with a few water drops"],
+  "towel": ["towel", "folded fluffy pink bath towel"],
+  "🫧": ["bubbles", "cluster of shiny round soap bubbles"],
+  "🦴": ["bone", "white dog-bone treat"],
+  "🍯": ["honey", "honey pot with a wooden honey dipper"],
+  "🌽": ["corn", "yellow corn on the cob with green leaves"],
+  "🎋": ["bamboo", "green bamboo stalks with a few leaves"],
+  "🌾": ["hay", "small bundle of golden hay tied with string"],
+  "🌈": ["rainbow", "rainbow arch with a little cloud at each end"],
+  "📒": ["sticker-book", "child's sticker album with colourful stickers on the cover"]
 }

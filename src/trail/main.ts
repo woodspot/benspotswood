@@ -6,13 +6,13 @@ import { keepAwake, lockGestures } from '../kids/hold';
 import { bindLangButtons, getLang } from '../kids/lang';
 import { bindKidsNav } from '../kids/nav';
 import { drawing } from '../kids/art';
-import { hasSound } from '../kids/sounds';
+import { loadPlayers, playerKey, savePlayer, saveRoster, stickerPartsWithSound } from '../kids/stickers';
 import { syncOnOpen } from '../kids/sync';
 import { bindDrag } from './drag';
 import { cancelRound, playRound, shapeSvg } from './rounds';
 import {
   AVATARS, finishStop, isOpen, newLesson, newPlayer, newSticker, openWorlds, placeSticker, PRAISE, promptParts,
-  STICKER_PLACE, STICKER_SOUND, STICKERS, stickerParts, STOP_COUNT, STOPS, STOPS_PER_WORLD, unplaced, WORLDS, worldParts,
+  STICKER_PLACE, STICKERS, STOP_COUNT, STOPS, STOPS_PER_WORLD, unplaced, WORLDS, worldParts,
   type Kind, type Player, type Round,
 } from './game';
 
@@ -33,34 +33,7 @@ const centerOf = (el: Element): [number, number] => {
   return [r.left + r.width / 2, r.top + r.height / 2];
 };
 
-// ── Players, saved on this device (and shared by family sync) ──
-
-const ROSTER_KEY = 'trail.roster';
-const playerKey = (id: string) => `trail.p.${id}`;
-
-function loadPlayers(): Player[] {
-  let ids: string[] = [];
-  try {
-    ids = JSON.parse(localStorage.getItem(ROSTER_KEY) ?? '[]');
-  } catch { /* start fresh */ }
-  const list = ids
-    .map((id) => {
-      try {
-        return { ...newPlayer('🐯', id), ...JSON.parse(localStorage.getItem(playerKey(id)) ?? 'null') } as Player;
-      } catch {
-        return null;
-      }
-    })
-    .filter((p): p is Player => !!p);
-  if (list.length) return list;
-  // First time: two players, one each.
-  const twins = [newPlayer('🐯'), newPlayer('🐼')];
-  twins.forEach(savePlayer);
-  saveRoster(twins);
-  return twins;
-}
-const savePlayer = (p: Player) => localStorage.setItem(playerKey(p.id), JSON.stringify(p));
-const saveRoster = (list: Player[]) => localStorage.setItem(ROSTER_KEY, JSON.stringify(list.map((p) => p.id)));
+// ── Players: saved on this device and shared by family sync (see kids/stickers.ts) ──
 
 let players = loadPlayers();
 let me: Player = players[0];
@@ -238,7 +211,7 @@ async function finishLesson(): Promise<void> {
   r.innerHTML = `<div class="present" role="button" aria-label="Open the present">🎁</div><p class="reward-title">⭐</p>`;
   r.hidden = false;
   sfx.fanfare();
-  await talk('You got a sticker! Tap the present!');
+  await talk([en('You got a sticker!'), en('Tap the present!')]);
   if (run !== lessonRun) return;
   r.onclick = async () => {
     r.onclick = null;
@@ -257,15 +230,6 @@ async function finishLesson(): Promise<void> {
     };
     r.insertAdjacentHTML('beforeend', '<p class="tap-on">👆</p>');
   };
-}
-
-/** A sticker's name, with the animal's real sound first when there is one. */
-function stickerPartsWithSound(e: string): Part[] {
-  const pic = STICKERS.find((s) => s.e === e);
-  if (!pic) return [];
-  const id = STICKER_SOUND[e];
-  const name = stickerParts(pic, getLang());
-  return id && hasSound(id) ? [{ ...en(pic.name), sound: id }, ...name] : name;
 }
 
 // ── The sticker picture: one scene per world, decorated with stickers ──
@@ -396,6 +360,9 @@ function bindRoster(): void {
 
 // ── Wiring ─────────────────────────────────────────────────────
 
+/** /trail/?book: straight to the chosen player's sticker book. */
+let wantBook = new URLSearchParams(location.search).has('book');
+
 function init(): void {
   bindVoiceButton($('voice'));
   bindLangButtons($('lang'));
@@ -413,7 +380,12 @@ function init(): void {
     if (!p) return;
     unlock();
     me = p;
-    openTrail(true);
+    if (wantBook) {
+      // Came from the sticker book button on the Kids' Games page.
+      wantBook = false;
+      openBook(WORLDS[STOPS[Math.min(me.done, STOP_COUNT - 1)].world].id);
+      void talk(STICKER_PLACE);
+    } else openTrail(true);
   });
   $('path').addEventListener('click', (e) => {
     const b = (e.target as HTMLElement).closest<HTMLElement>('[data-stop]');

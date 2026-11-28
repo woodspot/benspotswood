@@ -61,6 +61,9 @@ async function wake(): Promise<void> {
 }
 
 /** One note: frequency (Hz), start delay and length (seconds). */
+/** The sound engine (after unlock()), for games that make their own sounds, like the band's instruments. */
+export const audioCtx = (): AudioContext | null => ctx;
+
 export function tone(freq: number, start: number, dur: number, type: OscillatorType = 'sine', vol = 0.25): void {
   if (!ctx) return;
   const t = ctx.currentTime + start;

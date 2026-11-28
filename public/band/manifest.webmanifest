@@ -1,0 +1,22 @@
+{
+  "name": "Band",
+  "short_name": "Band",
+  "start_url": "/band/",
+  "scope": "/band/",
+  "display": "standalone",
+  "background_color": "#5b3fb5",
+  "theme_color": "#5b3fb5",
+  "icons": [
+    {
+      "src": "/band/icon-180.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    },
+    {
+      "src": "/band/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "orientation": "any"
+}

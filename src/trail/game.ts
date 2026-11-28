@@ -324,6 +324,8 @@ export const numberPart = (n: number, lang: Lang): Part => (lang === 'es' ? es(n
 export const PRAISE = ['Yes!', 'Great job!', 'You did it!', 'Wow!', 'Super!', 'Hooray!'];
 export const YUM = 'Yum yum! Thank you!';
 export const STICKER_PLACE = 'Put your sticker in your picture!';
+/** Said when another game gives a sticker (kids/stickers.ts). */
+export const IN_BOOK = 'It’s in your sticker book!';
 
 export const worldParts = (w: World, lang: Lang): Part[] =>
   lang === 'es' ? [en('Welcome to'), es(`¡${cap(w.name.es)}!`)] : [en(`Welcome to ${w.name.en}!`)];
@@ -331,7 +333,17 @@ export const worldParts = (w: World, lang: Lang): Part[] =>
 // ── Stickers ───────────────────────────────────────────────────
 
 /** Every sticker that can be won: the pictures from Match It!, so each has a name to hear. */
-export const STICKERS: Pic[] = [...PICS.animals, ...PICS.vehicles, ...PICS.food];
+export const STICKERS: Pic[] = [
+  ...PICS.animals, ...PICS.vehicles, ...PICS.food,
+  // More to collect, now that every game gives stickers.
+  { e: '🦒', name: 'giraffe', es: 'jirafa' }, { e: '🦓', name: 'zebra', es: 'cebra' }, { e: '🐯', name: 'tiger', es: 'tigre' },
+  { e: '🐼', name: 'panda', es: 'panda' }, { e: '🐨', name: 'koala', es: 'koala' }, { e: '🐢', name: 'turtle', es: 'tortuga' },
+  { e: '🐳', name: 'whale', es: 'ballena' }, { e: '🐙', name: 'octopus', es: 'pulpo' }, { e: '🦄', name: 'unicorn', es: 'unicornio' },
+  { e: '🦕', name: 'dinosaur', es: 'dinosaurio' }, { e: '🦊', name: 'fox', es: 'zorro' }, { e: '🦉', name: 'owl', es: 'búho' },
+  { e: '🐞', name: 'ladybug', es: 'mariquita' }, { e: '🐑', name: 'sheep', es: 'oveja' }, { e: '🐴', name: 'horse', es: 'caballo' },
+  { e: '🥁', name: 'drum', es: 'tambor' }, { e: '🎸', name: 'guitar', es: 'guitarra' }, { e: '🎺', name: 'trumpet', es: 'trompeta' },
+  { e: '🎹', name: 'piano', es: 'piano' }, { e: '🌈', name: 'rainbow', es: 'arcoíris' },
+];
 export const stickerParts = (p: Pic, lang: Lang) => picName(p, lang);
 
 /** The animal stickers that have a real sound (Barnyard's recordings, plus the lion). */
@@ -405,7 +417,7 @@ export function placeSticker(p: Player, world: string, e: string, x: number, y: 
 export function allTrailPhrases(): Part[] {
   const out: Part[] = [
     en("Who's playing?"), en("Let's go!"), en('You got a sticker!'), en('Tap the present!'), en('Not yet!'),
-    en('You finished the whole trail!'), en(YUM), en(STICKER_PLACE), ...PRAISE.map((p) => en(p)),
+    en('You finished the whole trail!'), en(YUM), en(STICKER_PLACE), en(IN_BOOK), ...PRAISE.map((p) => en(p)),
   ];
   const round = (r: Round, lang: Lang) => out.push(...promptParts(r, lang));
   for (const lang of ['en', 'es'] as Lang[]) {
