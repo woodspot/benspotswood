@@ -96,7 +96,10 @@ async function speak(p, attempt = 1) {
     }),
   });
   if (res.status === 429 || res.status >= 500) {
-    if (attempt > 5) throw new Error(`OpenAI ${res.status} after retries`);
+    const why = (await res.text()).slice(0, 300);
+    // Out of credit is a 429 too, but waiting won't fix it.
+    if (/insufficient_quota|billing/i.test(why)) throw new Error(`OpenAI ${res.status}: ${why}`);
+    if (attempt > 5) throw new Error(`OpenAI ${res.status} after retries: ${why}`);
     await new Promise((r) => setTimeout(r, 1500 * attempt));
     return speak(p, attempt + 1);
   }
