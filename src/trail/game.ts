@@ -1,9 +1,12 @@
 // Hoot's Trail: a winding learning trail for little ones, guided by Hoot the owl.
-// Each stop is a short lesson (letters, first sounds, counting, colours, shapes, big and small,
-// patterns, dot-to-dot); finishing one earns a sticker for the sticker book and opens the next stop.
+// Each stop is a few hands-on rounds: trace a letter and pop its bubbles, drop pictures in the right
+// letter's basket, tap to count and feed a hungry friend, sort colours, fit shapes in their holes,
+// big things to Big Bear, finish a bead pattern, dot-to-dot. Finishing a stop earns a sticker to put
+// in that world's picture, and opens the next stop.
 // No DOM here, so the rules and everything the voice says can be tested.
-import { LETTERS, letterOf, meetParts as letterMeet, questionParts as letterFind, type Letter } from '../abc/game';
+import { LETTERS, letterOf, letterPart, meetParts as letterMeet, wordPart, type Letter } from '../abc/game';
 import { COLORS, type ColorId } from '../balloons/game';
+import { ANIMALS } from '../barn/game';
 import { PICS, nameParts as picName, type Pic } from '../match/game';
 import { COLOR_WORDS, en, es, numberWord, type Lang, type Part } from '../kids/words';
 
@@ -19,10 +22,8 @@ export function shuffle<T>(list: readonly T[], rng: Rng): T[] {
   }
   return a;
 }
-/** `n` different items from a list, always including `must`. */
-function choicesWith<T>(must: T, pool: readonly T[], n: number, rng: Rng): T[] {
-  return shuffle([must, ...shuffle(pool.filter((x) => x !== must), rng).slice(0, n - 1)], rng);
-}
+/** How much of something, by world (0–3). */
+const byWorld = <T>(w: number, list: [T, T, T, T]): T => list[Math.min(Math.max(w, 0), 3)];
 
 // ── The trail ──────────────────────────────────────────────────
 
@@ -32,14 +33,15 @@ export interface World {
   id: string;
   name: { en: string; es: string };
   emoji: string;
+  deco: string[]; // pictures along the path (and in the sticker picture)
 }
 
 /** Four worlds of ten stops; each world is a little harder than the one before. */
 export const WORLDS: World[] = [
-  { id: 'meadow', name: { en: 'the Meadow', es: 'el prado' }, emoji: '🌼' },
-  { id: 'beach', name: { en: 'the Beach', es: 'la playa' }, emoji: '🏖️' },
-  { id: 'forest', name: { en: 'the Forest', es: 'el bosque' }, emoji: '🌲' },
-  { id: 'space', name: { en: 'Space', es: 'el espacio' }, emoji: '🚀' },
+  { id: 'meadow', name: { en: 'the Meadow', es: 'el prado' }, emoji: '🌼', deco: ['🌸', '🐰', '🌳', '🐞', '🐝', '🌸', '🐑', '🌳'] },
+  { id: 'beach', name: { en: 'the Beach', es: 'la playa' }, emoji: '🏖️', deco: ['🏝️', '🐳', '⛵', '🐟', '🐢', '🐙', '☀️', '🐟'] },
+  { id: 'forest', name: { en: 'the Forest', es: 'el bosque' }, emoji: '🌲', deco: ['🌳', '🦉', '🦊', '🐻', '🐸', '🌳', '🐭', '🐞'] },
+  { id: 'space', name: { en: 'Space', es: 'el espacio' }, emoji: '🚀', deco: ['🚀', '🌙', '⭐', '⭐', '🚀', '⭐', '🌙', '⭐'] },
 ];
 export const STOPS_PER_WORLD = 10;
 export const STOP_COUNT = WORLDS.length * STOPS_PER_WORLD;
@@ -59,12 +61,7 @@ export const stopAt = (index: number): Stop => ({
 });
 export const STOPS: Stop[] = Array.from({ length: STOP_COUNT }, (_, i) => stopAt(i));
 
-/** The little picture on each stop of the trail. */
-export const KIND_ICON: Record<Kind, string> = {
-  letter: '🔤', sound: '👂', count: '🔢', color: '🖍️', shape: '🔷', size: '🐘', pattern: '🧩', dots: '✏️',
-};
-
-// ── Things to count, compare and line up ───────────────────────
+// ── Things to count, feed, compare and line up ─────────────────
 
 export interface Thing {
   e: string;
@@ -84,8 +81,30 @@ export const THINGS: Thing[] = [
   T('🐞', 'ladybug', 'ladybugs', 'mariquita', 'mariquitas'),
   T('🌸', 'flower', 'flowers', 'flor', 'flores'),
 ];
+/** Food for hungry friends. */
+export const FOODS: Thing[] = [
+  THINGS[0],
+  THINGS[5],
+  THINGS[7],
+  T('🥕', 'carrot', 'carrots', 'zanahoria', 'zanahorias'),
+  T('🍓', 'strawberry', 'strawberries', 'fresa', 'fresas'),
+];
 // Things that look the same drawn big or small (and make sense either way).
 export const SIZE_THINGS = ['🐘', '🐶', '⚽', '🌳', '🐟', '🍎', '🦆', '🚗'];
+
+/** Hungry friends who ask to be fed. */
+export interface Friend {
+  e: string;
+  name: { en: string; es: string };
+}
+export const FRIENDS: Friend[] = [
+  { e: '🐰', name: { en: 'bunny', es: 'conejo' } },
+  { e: '🐵', name: { en: 'monkey', es: 'mono' } },
+  { e: '🐻', name: { en: 'bear', es: 'oso' } },
+  { e: '🐘', name: { en: 'elephant', es: 'elefante' } },
+  { e: '🐶', name: { en: 'puppy', es: 'perrito' } },
+  { e: '🐼', name: { en: 'panda', es: 'panda' } },
+];
 
 // ── Shapes ─────────────────────────────────────────────────────
 
@@ -125,137 +144,150 @@ export const DOT_PICS: DotPic[] = [
   { id: 'star', name: { en: 'a star', es: 'una estrella' }, color: '#f7cf2d', points: starPts() },
 ];
 
-// ── Questions ──────────────────────────────────────────────────
+// ── Rounds: one hands-on activity each ─────────────────────────
 
-export type Question =
-  | { kind: 'letter'; target: string; choices: string[] }
-  | { kind: 'sound'; target: string; choices: string[] } // pick the picture whose word starts with the letter
-  | { kind: 'count'; thing: Thing; n: number; choices: number[] }
-  | { kind: 'color'; target: ColorId; choices: ColorId[] }
-  | { kind: 'shape'; target: ShapeId; choices: ShapeId[]; colors: string[] }
-  | { kind: 'size'; target: 'big' | 'small'; thing: string; choices: ('big' | 'small')[] }
-  | { kind: 'pattern'; seq: Thing[]; answer: Thing; choices: Thing[] }
+export type Round =
+  | { kind: 'trace'; letter: string } // trace the big letter with a finger
+  | { kind: 'pop'; letter: string; others: string[]; need: number } // pop the bubbles with that letter
+  | { kind: 'sound'; letters: string[] } // a basket per letter: drop each picture in its first letter's basket
+  | { kind: 'tapcount'; thing: Thing; n: number } // tap each one to count it
+  | { kind: 'feed'; friend: Friend; food: Thing; n: number } // drag exactly n treats to a hungry friend
+  | { kind: 'sort'; colors: ColorId[]; items: ColorId[] } // balls into the basket of their colour
+  | { kind: 'shapes'; shapes: ShapeId[]; colors: string[] } // each shape into its hole
+  | { kind: 'size'; things: string[] } // each thing comes big and small: big to Big Bear, small to Little Bear
+  | { kind: 'pattern'; seq: Thing[]; blanks: Thing[]; tray: Thing[] } // finish the bead string
   | { kind: 'dots'; pic: DotPic };
-
-export const QUESTIONS_PER_STOP = 4;
 
 /** Letters in play: the first few, then more of the alphabet as the worlds go on. */
 export function letterPool(world: number, lang: Lang): Letter[] {
   const all = LETTERS[lang];
-  return all.slice(0, Math.min(all.length, [6, 13, 20, 99][Math.min(world, 3)]));
+  return all.slice(0, Math.min(all.length, byWorld(world, [6, 13, 20, 99])));
 }
 
 const plain = (w: string) => w.normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase();
+/** Does the letter's picture word really start with it? (Not "kiwi" for W, "piña" for Ñ.) */
 export const startsWith = (l: Letter) => l.ch !== 'Ñ' && plain(l.word).startsWith(plain(l.ch));
 
-export function newQuestion(stop: Stop, lang: Lang, rng: Rng, prev?: Question): Question {
+/** A count from 1 up to the world's top number. */
+const countTo = (w: number, rng: Rng) => 1 + Math.floor(rng() * byWorld(w, [3, 5, 7, 10]));
+
+function patternRound(w: number, rng: Rng): Extract<Round, { kind: 'pattern' }> {
+  const [a, b, c] = shuffle(THINGS, rng);
+  // Meadow: AB AB. Beach: AB AB, more to pick from. Forest: ABC ABC. Space: AAB AAB with two to fill.
+  const unit = byWorld(w, [[a, b], [a, b], [a, b, c], [a, a, b]]);
+  const blanksN = w >= 3 ? 2 : 1;
+  const len = (unit.length === 2 ? 4 : 6) + (blanksN - 1);
+  const all = Array.from({ length: len }, (_, i) => unit[i % unit.length]);
+  const seq = all.slice(0, len - blanksN);
+  const blanks = all.slice(len - blanksN);
+  // The tray: what's needed, plus something else to think about.
+  const extra = shuffle(THINGS.filter((t) => !unit.includes(t)), rng).slice(0, w === 0 ? 1 : 2);
+  const need = [...new Set(blanks)];
+  const tray = shuffle([...need, ...unit.filter((t) => !need.includes(t)).slice(0, 1), ...extra], rng);
+  return { kind: 'pattern', seq, blanks, tray };
+}
+
+/** The rounds for one visit to a stop. */
+export function newLesson(stop: Stop, lang: Lang, rng: Rng): Round[] {
   const w = Math.min(stop.world, 3);
+  const letters = (n: number, firstSound = false) =>
+    shuffle(letterPool(w, lang).filter((l) => !firstSound || startsWith(l)).map((l) => l.ch), rng).slice(0, n);
   switch (stop.kind) {
-    case 'letter':
-    case 'sound': {
-      // First sounds only use letters whose word really starts with them (not "kiwi" for W, "piña" for Ñ).
-      const pool = letterPool(w, lang).filter((l) => stop.kind === 'letter' || startsWith(l)).map((l) => l.ch);
-      const fresh = pool.filter((ch) => !(prev && 'target' in prev && prev.target === ch));
-      const target = pick(rng, fresh);
-      const n = stop.kind === 'letter' ? [2, 3, 3, 4][w] : [2, 3, 3, 3][w];
-      return { kind: stop.kind, target, choices: choicesWith(target, pool, n, rng) };
+    case 'letter': {
+      // Trace a letter, then pop its bubbles; then a second letter.
+      const [a, b] = letters(2);
+      const others = (t: string) => letters(5).filter((x) => x !== t).slice(0, byWorld(w, [1, 2, 2, 3]));
+      return [
+        { kind: 'trace', letter: a }, { kind: 'pop', letter: a, others: others(a), need: 3 },
+        { kind: 'trace', letter: b }, { kind: 'pop', letter: b, others: others(b), need: 3 },
+      ];
     }
+    case 'sound':
+      return Array.from({ length: 3 }, () => ({ kind: 'sound' as const, letters: letters(byWorld(w, [2, 2, 3, 3]), true) }));
     case 'count': {
-      const max = [3, 5, 7, 10][w];
-      const n = 1 + Math.floor(rng() * max);
-      const others = Array.from({ length: max + 1 }, (_, i) => i).filter((x) => x >= 1 && x !== n);
-      const choices = shuffle([n, ...shuffle(others, rng).slice(0, 2)], rng);
-      const thing = pick(rng, THINGS.filter((t) => !(prev?.kind === 'count' && prev.thing === t)));
-      return { kind: 'count', thing, n, choices };
+      const thing = pick(rng, THINGS);
+      const [f1, f2] = shuffle(FRIENDS, rng);
+      const [d1, d2] = shuffle(FOODS, rng);
+      return [
+        { kind: 'tapcount', thing, n: Math.max(2, countTo(w, rng)) },
+        { kind: 'feed', friend: f1, food: d1, n: countTo(w, rng) },
+        { kind: 'feed', friend: f2, food: d2, n: Math.max(2, countTo(w, rng)) },
+      ];
     }
-    case 'color': {
-      const pool = COLORS.slice(0, [4, 5, 7, 7][w]).map((c) => c.id);
-      const target = pick(rng, pool.filter((c) => !(prev?.kind === 'color' && prev.target === c)));
-      return { kind: 'color', target, choices: choicesWith(target, pool, [2, 3, 4, 4][w], rng) };
-    }
-    case 'shape': {
-      const pool = SHAPES.slice(0, [4, 5, 6, 8][w]);
-      const target = pick(rng, pool.filter((s) => !(prev?.kind === 'shape' && prev.target === s)));
-      const choices = choicesWith(target, pool, [2, 3, 3, 4][w], rng);
-      // Every shape a different colour, so it's the shape they look at, not the colour.
-      const colors = shuffle(COLORS.map((c) => c.hex), rng).slice(0, choices.length);
-      return { kind: 'shape', target, choices, colors };
-    }
-    case 'size': {
-      const target = rng() < 0.5 ? 'big' : 'small';
-      return { kind: 'size', target, thing: pick(rng, SIZE_THINGS), choices: rng() < 0.5 ? ['big', 'small'] : ['small', 'big'] };
-    }
-    case 'pattern': {
-      const [a, b, c] = shuffle(THINGS, rng);
-      // Meadow: AB AB. Beach: AB AB with three to pick from. Forest: ABC ABC. Space: AAB AAB.
-      const unit = [[a, b], [a, b], [a, b, c], [a, a, b]][w];
-      const len = unit.length === 2 ? 4 : 6;
-      const seq = Array.from({ length: len - 1 }, (_, i) => unit[i % unit.length]);
-      const answer = unit[(len - 1) % unit.length];
-      // Wrong choices: the other things in the pattern first, then something new.
-      const others = [...new Set([...unit.filter((t) => t !== answer), ...shuffle(THINGS, rng)])].filter((t) => t !== answer);
-      return { kind: 'pattern', seq, answer, choices: shuffle([answer, ...others.slice(0, w === 0 ? 1 : 2)], rng) };
-    }
+    case 'color':
+      return Array.from({ length: 3 }, () => {
+        const colors = shuffle(COLORS.slice(0, byWorld(w, [4, 5, 7, 7])).map((c) => c.id), rng).slice(0, byWorld(w, [2, 2, 3, 3]));
+        const items = shuffle(colors.flatMap((c) => [c, c]), rng); // two of each colour
+        return { kind: 'sort' as const, colors, items };
+      });
+    case 'shape':
+      return Array.from({ length: 3 }, () => {
+        const shapes = shuffle(SHAPES.slice(0, byWorld(w, [4, 5, 6, 8])), rng).slice(0, byWorld(w, [2, 3, 3, 4]));
+        // Every piece a different colour, so it's the shape they look at, not the colour.
+        return { kind: 'shapes' as const, shapes, colors: shuffle(COLORS.map((c) => c.hex), rng).slice(0, shapes.length) };
+      });
+    case 'size':
+      return Array.from({ length: 3 }, () => ({ kind: 'size' as const, things: shuffle(SIZE_THINGS, rng).slice(0, byWorld(w, [1, 1, 2, 2])) }));
+    case 'pattern':
+      return Array.from({ length: 3 }, () => patternRound(w, rng));
     case 'dots': {
-      const pool = DOT_PICS.slice(0, [3, 4, 5, 6][w] ?? 6);
-      return { kind: 'dots', pic: pick(rng, pool.filter((p) => !(prev?.kind === 'dots' && prev.pic === p))) };
+      const pool = shuffle(DOT_PICS.slice(0, byWorld(w, [3, 4, 5, 6])), rng);
+      return [{ kind: 'dots', pic: pool[0] }, { kind: 'dots', pic: pool[1] }];
     }
   }
 }
 
-/** A whole stop's questions. Dot-to-dot is two pictures; everything else is four quick questions. */
-export function newLesson(stop: Stop, lang: Lang, rng: Rng): Question[] {
-  const n = stop.kind === 'dots' ? 2 : QUESTIONS_PER_STOP;
-  const out: Question[] = [];
-  for (let i = 0; i < n; i++) out.push(newQuestion(stop, lang, rng, out[i - 1]));
-  return out;
-}
-
-/** Is this choice the right answer? (Choices are identified by the same values the question holds.) */
-export function isRight(q: Question, choice: string | number): boolean {
-  switch (q.kind) {
-    case 'letter':
+/** The pieces a child moves in a round, each with what it belongs to (for drag-and-drop rounds). */
+export function piecesOf(r: Round): { id: string; goes: string }[] {
+  switch (r.kind) {
     case 'sound':
-    case 'color':
-    case 'shape':
+      return r.letters.map((ch) => ({ id: ch, goes: ch }));
+    case 'sort':
+      return r.items.map((c, i) => ({ id: `${c}-${i}`, goes: c }));
+    case 'shapes':
+      return r.shapes.map((s) => ({ id: s, goes: s }));
     case 'size':
-      return q.target === choice;
-    case 'count':
-      return q.n === choice;
+      return r.things.flatMap((_t, i) => [{ id: `big-${i}`, goes: 'big' }, { id: `small-${i}`, goes: 'small' }]);
     case 'pattern':
-      return q.answer.e === choice;
-    case 'dots':
-      return true;
+      return r.tray.map((t, i) => ({ id: `${i}`, goes: t.e }));
+    case 'feed':
+      return Array.from({ length: r.n + 2 }, (_, i) => ({ id: `${i}`, goes: 'friend' }));
+    default:
+      return [];
   }
 }
 
 // ── Speech ─────────────────────────────────────────────────────
 // Like the other toddler games: instructions in English, the word being learned in the chosen language.
 
-const say = (w: { en: string; es: string }, lang: Lang, bang = true): Part =>
-  lang === 'es' ? es(bang ? `¡${cap(w.es)}!` : w.es) : en(bang ? `${cap(w.en)}!` : w.en);
+const bang = (w: { en: string; es: string }, lang: Lang): Part => (lang === 'es' ? es(`¡${cap(w.es)}!`) : en(`${cap(w.en)}!`));
 
 export const SIZE_WORDS = { big: { en: 'big', es: 'grande' }, small: { en: 'small', es: 'pequeño' } };
 
-/** What Hoot asks. */
-export function promptParts(q: Question, lang: Lang): Part[] {
+/** What Hoot (or the hungry friend) says to start a round. */
+export function promptParts(r: Round, lang: Lang): Part[] {
   const es1 = lang === 'es';
-  switch (q.kind) {
-    case 'letter':
-      return letterFind(letterOf(q.target, lang), lang);
-    case 'sound': {
-      const l = letterOf(q.target, lang);
-      // Inside a sentence the voice says the letter's name (not its sound), as in the ABC game.
-      return es1 ? [en('What starts with'), { ...es(`¡${cap(l.name)}!`), voice: 'letters' }] : [en(`What starts with ${l.ch}?`)];
+  switch (r.kind) {
+    case 'trace': {
+      const l = letterOf(r.letter, lang);
+      return es1 ? [en('Trace the letter'), letterPart(l, lang)] : [en(`Trace the letter ${l.ch}!`)];
     }
-    case 'count':
-      return es1 ? [en('How many'), es(`${q.thing.many.es}?`)] : [en(`How many ${q.thing.many.en}?`)];
-    case 'color':
-      return es1 ? [en('Find the'), es(COLOR_WORDS[q.target].es), en('crayon!')] : [en(`Find the ${COLOR_WORDS[q.target].en} crayon!`)];
-    case 'shape':
-      return es1 ? [en('Find the'), es(SHAPE_NAMES[q.target].es)] : [en(`Find the ${SHAPE_NAMES[q.target].en}!`)];
+    case 'pop': {
+      const l = letterOf(r.letter, lang);
+      return es1 ? [en('Pop every'), letterPart(l, lang)] : [en(`Pop every ${l.ch}!`)];
+    }
+    case 'sound':
+      return [en('Put each picture in the basket with its first letter!')];
+    case 'tapcount':
+      return es1 ? [en("Let's count the"), es(`¡${r.thing.many.es}!`)] : [en(`Let's count the ${r.thing.many.en}!`)];
+    case 'feed':
+      return [en("I'm hungry! Can I have"), numberPart(r.n, lang), foodPart(r.food, r.n, lang)];
+    case 'sort':
+      return [en('Put each ball in the basket of its color!')];
+    case 'shapes':
+      return [en('Put each shape in its hole!')];
     case 'size':
-      return es1 ? [en('Which one is'), es(`${SIZE_WORDS[q.target].es}?`)] : [en(`Which one is ${q.target}?`)];
+      return [en('Big ones for Big Bear, small ones for Little Bear!')];
     case 'pattern':
       return [en('What comes next?')];
     case 'dots':
@@ -263,35 +295,35 @@ export function promptParts(q: Question, lang: Lang): Part[] {
   }
 }
 
-/** What's said when a choice is tapped: its name, so even a wrong tap teaches something. */
-export function choiceParts(q: Question, choice: string | number, lang: Lang): Part[] {
-  switch (q.kind) {
-    case 'letter':
-    case 'sound':
-      return letterMeet(letterOf(String(choice), lang), lang);
-    case 'count':
-      return [say(numberWord(Number(choice)), lang)];
-    case 'color':
-      return [say(COLOR_WORDS[String(choice)], lang)];
-    case 'shape':
-      return [say(SHAPE_NAMES[choice as ShapeId], lang)];
-    case 'size':
-      return [say(SIZE_WORDS[choice as 'big' | 'small'], lang)];
-    case 'pattern': {
-      const t = THINGS.find((x) => x.e === choice) ?? q.answer;
-      return [say(t.one, lang)];
-    }
-    case 'dots':
-      return [say(q.pic.name, lang)];
-  }
-}
+/** "apples?" / "manzanas?" (or one "apple?") */
+export const foodPart = (t: Thing, n: number, lang: Lang): Part => {
+  const w = n === 1 ? t.one : t.many;
+  return lang === 'es' ? es(`¿${w.es}?`) : en(`${w.en}?`);
+};
 
-/** Counting out loud (wrong answers in counting, and each dot in dot-to-dot). */
+/** The letter, said inside a sentence in English so the voice says its name: "That's B!" */
+export const thatsLetter = (ch: string, lang: Lang): Part[] =>
+  lang === 'es' ? [en("That's"), letterPart(letterOf(ch, lang), lang)] : [en(`That's ${ch}!`)];
+
+/** Meeting a letter: "B is for ball!" / "¡Be! ¡Ballena!" */
+export const letterParts = (ch: string, lang: Lang): Part[] => letterMeet(letterOf(ch, lang), lang);
+/** A letter's picture word: "Ball!" */
+export const letterWordPart = (ch: string, lang: Lang): Part => wordPart(letterOf(ch, lang), lang);
+
+export const colorPart = (c: ColorId, lang: Lang): Part => bang(COLOR_WORDS[c], lang);
+export const shapePart = (s: ShapeId, lang: Lang): Part => bang(SHAPE_NAMES[s], lang);
+export const sizePart = (s: 'big' | 'small', lang: Lang): Part => bang(SIZE_WORDS[s], lang);
+export const thingPart = (t: Thing, lang: Lang): Part => bang(t.one, lang);
+/** "Three apples!" after tap-counting. */
+export const countedParts = (t: Thing, n: number, lang: Lang): Part[] => [numberPart(n, lang), lang === 'es' ? es(`¡${(n === 1 ? t.one : t.many).es}!`) : en(`${(n === 1 ? t.one : t.many).en}!`)];
+export const dotsDonePart = (p: DotPic, lang: Lang): Part => bang(p.name, lang);
+
+/** Counting out loud. */
 export const numberPart = (n: number, lang: Lang): Part => (lang === 'es' ? es(numberWord(n).es) : en(numberWord(n).en));
 
 export const PRAISE = ['Yes!', 'Great job!', 'You did it!', 'Wow!', 'Super!', 'Hooray!'];
-export const TRY_AGAIN = 'Try again!';
-export const LETS_COUNT = "Let's count!";
+export const YUM = 'Yum yum! Thank you!';
+export const STICKER_PLACE = 'Put your sticker in your picture!';
 
 export const worldParts = (w: World, lang: Lang): Part[] =>
   lang === 'es' ? [en('Welcome to'), es(`¡${cap(w.name.es)}!`)] : [en(`Welcome to ${w.name.en}!`)];
@@ -302,6 +334,12 @@ export const worldParts = (w: World, lang: Lang): Part[] =>
 export const STICKERS: Pic[] = [...PICS.animals, ...PICS.vehicles, ...PICS.food];
 export const stickerParts = (p: Pic, lang: Lang) => picName(p, lang);
 
+/** The animal stickers that have a real sound (Barnyard's recordings, plus the lion). */
+export const STICKER_SOUND: Record<string, string> = Object.fromEntries([
+  ...ANIMALS.map((a) => [a.emoji, a.id]),
+  ['🦁', 'lion'],
+]);
+
 /** A sticker they don't have yet (or any, once the book is full). */
 export function newSticker(have: readonly string[], rng: Rng): Pic {
   const left = STICKERS.filter((s) => !have.includes(s.e));
@@ -310,6 +348,13 @@ export function newSticker(have: readonly string[], rng: Rng): Pic {
 
 // ── Players (each twin gets their own trail) ───────────────────
 
+/** A sticker stuck in a world's picture, at x/y percent across and down. */
+export interface Placed {
+  e: string;
+  x: number;
+  y: number;
+}
+
 export interface Player {
   id: string;
   name: string;
@@ -317,11 +362,12 @@ export interface Player {
   done: number; // stops finished in order: the next stop is `done`
   stickers: string[];
   stars: number;
+  scenes?: Record<string, Placed[]>; // world id → stickers in its picture
 }
 export const AVATARS = ['🐯', '🐼', '🦊', '🐨', '🐸', '🦄', '🐵', '🐰'];
 
 export function newPlayer(avatar: string, id = Math.random().toString(36).slice(2, 8)): Player {
-  return { id, name: '', avatar, done: 0, stickers: [], stars: 0 };
+  return { id, name: '', avatar, done: 0, stickers: [], stars: 0, scenes: {} };
 }
 
 /** Finishing a stop: a star, a sticker, and the next stop opens if this was the newest one. */
@@ -334,44 +380,57 @@ export function finishStop(p: Player, stop: number, sticker: Pic): void {
 /** Can this stop be played? Every finished stop, and the next one. After the last stop all are open. */
 export const isOpen = (p: Player, stop: number) => stop <= p.done || p.done >= STOP_COUNT;
 
-/** Every fixed thing Hoot's Trail says, for the voice clip generator. */
+/** Worlds whose picture can be decorated: every world reached so far. */
+export const openWorlds = (p: Player) => WORLDS.filter((_, i) => i * STOPS_PER_WORLD <= Math.min(p.done, STOP_COUNT - 1));
+
+/** Stickers they have that aren't in any picture yet. */
+export function unplaced(p: Player): string[] {
+  const used = new Set(Object.values(p.scenes ?? {}).flat().map((s) => s.e));
+  return p.stickers.filter((e) => !used.has(e));
+}
+
+/** Put a sticker in a world's picture (or move it there). Positions are kept inside the picture. */
+export function placeSticker(p: Player, world: string, e: string, x: number, y: number): void {
+  p.scenes ??= {};
+  for (const list of Object.values(p.scenes)) {
+    const i = list.findIndex((s) => s.e === e);
+    if (i >= 0) list.splice(i, 1);
+  }
+  const clamp = (v: number) => Math.round(Math.min(94, Math.max(6, v)));
+  (p.scenes[world] ??= []).push({ e, x: clamp(x), y: clamp(y) });
+}
+
+// ── Everything Hoot's Trail says, for the voice clip generator ──
+
 export function allTrailPhrases(): Part[] {
   const out: Part[] = [
     en("Who's playing?"), en("Let's go!"), en('You got a sticker!'), en('Tap the present!'), en('Not yet!'),
-    en('You finished the whole trail!'), en(TRY_AGAIN), en(LETS_COUNT), ...PRAISE.map((p) => en(p)),
+    en('You finished the whole trail!'), en(YUM), en(STICKER_PLACE), ...PRAISE.map((p) => en(p)),
   ];
+  const round = (r: Round, lang: Lang) => out.push(...promptParts(r, lang));
   for (const lang of ['en', 'es'] as Lang[]) {
     for (const w of WORLDS) out.push(...worldParts(w, lang));
     for (let n = 1; n <= 10; n++) out.push(numberPart(n, lang));
     for (const s of STICKERS) out.push(...stickerParts(s, lang));
-    const q = (x: Question) => out.push(...promptParts(x, lang));
-    const c = (x: Question, v: string | number) => out.push(...choiceParts(x, v, lang));
     for (const l of LETTERS[lang]) {
-      q({ kind: 'letter', target: l.ch, choices: [l.ch] });
-      if (startsWith(l)) q({ kind: 'sound', target: l.ch, choices: [l.ch] });
-      c({ kind: 'letter', target: l.ch, choices: [l.ch] }, l.ch);
+      round({ kind: 'trace', letter: l.ch }, lang);
+      round({ kind: 'pop', letter: l.ch, others: [], need: 1 }, lang);
+      out.push(...letterParts(l.ch, lang), ...thatsLetter(l.ch, lang), letterWordPart(l.ch, lang));
     }
-    const thing = THINGS[0];
-    for (const t of THINGS) q({ kind: 'count', thing: t, n: 1, choices: [1] });
-    for (let n = 1; n <= 10; n++) c({ kind: 'count', thing, n, choices: [n] }, n);
-    for (const col of COLORS) {
-      q({ kind: 'color', target: col.id, choices: [col.id] });
-      c({ kind: 'color', target: col.id, choices: [col.id] }, col.id);
+    for (const t of THINGS) {
+      round({ kind: 'tapcount', thing: t, n: 2 }, lang);
+      out.push(thingPart(t, lang));
+      for (let n = 1; n <= 10; n++) out.push(...countedParts(t, n, lang));
     }
-    for (const s of SHAPES) {
-      q({ kind: 'shape', target: s, choices: [s], colors: [] });
-      c({ kind: 'shape', target: s, choices: [s], colors: [] }, s);
-    }
-    for (const s of ['big', 'small'] as const) {
-      q({ kind: 'size', target: s, thing: '🐘', choices: [s] });
-      c({ kind: 'size', target: s, thing: '🐘', choices: [s] }, s);
-    }
-    q({ kind: 'pattern', seq: [], answer: thing, choices: [] });
-    for (const t of THINGS) c({ kind: 'pattern', seq: [], answer: t, choices: [] }, t.e);
-    for (const p of DOT_PICS) {
-      q({ kind: 'dots', pic: p });
-      c({ kind: 'dots', pic: p }, p.id);
-    }
+    for (const f of FOODS) for (let n = 1; n <= 10; n++) round({ kind: 'feed', friend: FRIENDS[0], food: f, n }, lang);
+    for (const c of COLORS) out.push(colorPart(c.id, lang));
+    for (const s of SHAPES) out.push(shapePart(s, lang));
+    for (const s of ['big', 'small'] as const) out.push(sizePart(s, lang));
+    for (const p of DOT_PICS) out.push(dotsDonePart(p, lang));
+    for (const r of [
+      { kind: 'sound', letters: [] }, { kind: 'sort', colors: [], items: [] }, { kind: 'shapes', shapes: [], colors: [] },
+      { kind: 'size', things: [] }, { kind: 'pattern', seq: [], blanks: [], tray: [] }, { kind: 'dots', pic: DOT_PICS[0] },
+    ] as Round[]) round(r, lang);
   }
   return out;
 }

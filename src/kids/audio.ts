@@ -230,6 +230,10 @@ function bufferFor(url: string): Promise<AudioBuffer | null> {
   }
   return b;
 }
+/** Some characters' clips play a touch slower and lower, so they sound like themselves (Santa, not Grandpa). */
+const CLIP_RATE: Partial<Record<string, number>> = { santa: 0.88 };
+const clipRate = (p: Part) => (p.sound ? 1 : (CLIP_RATE[p.voice ?? ''] ?? 1));
+
 const clipUrl = (p: Part) => {
   const real = p.sound && soundUrl(p.sound);
   if (real) return real;
@@ -360,18 +364,18 @@ export async function say(line: string | Part[]): Promise<void> {
   for (let i = 0; i < parts.length; i++) {
     const clip = await pending[i];
     if (my !== seq) return;
-    if (clip && (await playClip(clip, my, parts[i].text))) continue;
+    if (clip && (await playClip(clip, my, parts[i].text, clipRate(parts[i])))) continue;
     if (my !== seq) return;
     await speakDevice(parts[i], my);
   }
 }
 
 /** Play a voice clip: on the audio player, or through Web Audio if the player won't start. */
-async function playClip(clip: Blob, my: number, text: string): Promise<boolean> {
+async function playClip(clip: Blob, my: number, text: string, rate = 1): Promise<boolean> {
   await wake();
   const why: string[] = [];
   if (!player) why.push('no player');
-  else if (await playOnPlayer(player, clip, my, why)) return note(`"${text}": clip ✓`), true;
+  else if (await playOnPlayer(player, clip, my, why, rate)) return note(`"${text}": clip ✓`), true;
   if (!ctx || my !== seq) {
     if (my === seq) note(`"${text}": ${why.join(', ')}, no sound engine → device voice`);
     return my !== seq;
@@ -379,7 +383,7 @@ async function playClip(clip: Blob, my: number, text: string): Promise<boolean> 
   try {
     const buf = await ctx.decodeAudioData(await clip.arrayBuffer());
     note(`"${text}": ${why.join(', ')}; Web Audio ✓ (${ctx.state})`);
-    await playBuffer(buf, my);
+    await playBuffer(buf, my, rate);
     return true;
   } catch (e) {
     note(`"${text}": ${why.join(', ')}; decode ✗ ${e instanceof Error ? e.name : e} → device voice`);
@@ -405,7 +409,7 @@ export async function playBlob(blob: Blob): Promise<void> {
 }
 
 /** Play a recording on the shared player. Resolves true when it played (to the end or until cut off). */
-function playOnPlayer(el: HTMLAudioElement, blob: Blob, my: number, why?: string[]): Promise<boolean> {
+function playOnPlayer(el: HTMLAudioElement, blob: Blob, my: number, why?: string[], rate = 1): Promise<boolean> {
   return new Promise((resolve) => {
     const url = URL.createObjectURL(blob);
     let done = false;
@@ -421,6 +425,10 @@ function playOnPlayer(el: HTMLAudioElement, blob: Blob, my: number, why?: string
     const onEnd = () => finish(true);
     el.src = url;
     el.volume = 1;
+    // A slower rate also lowers the voice (pitch isn't kept), which is the point for Santa.
+    el.preservesPitch = rate === 1;
+    (el as HTMLAudioElement & { webkitPreservesPitch?: boolean }).webkitPreservesPitch = rate === 1;
+    el.playbackRate = rate;
     el.play().then(
       () => {
         // Listen only once it's really playing: swapping the source can fire a stray "pause".

@@ -15,6 +15,7 @@
     "bee":     { "max": 2.0, "src": "https://bigsoundbank.com/UPLOAD/mp3/1000.mp3", "page": "https://bigsoundbank.com/bumblebee-1-s1000.html", "title": "Bumblebee #1", "by": "Joseph Sardin, BigSoundBank", "licence": "CC0" },
     "pig":     { "max": 1.8, "src": "scripts/sound-src/pig.mp3", "title": "Pig snorting", "by": "ElevenLabs sound effects (made for this site)", "licence": "used under ElevenLabs' terms", "gain": 0.8 },
     "mouse":   { "max": 1.5, "src": "scripts/sound-src/mouse.mp3", "title": "Curious mouse squeak", "by": "ElevenLabs sound effects (made for this site)", "licence": "used under ElevenLabs' terms" },
+    "turkey":  { "max": 2.0, "src": "scripts/sound-src/turkey.mp3", "title": "Turkey gobble", "by": "ElevenLabs sound effects (made for this site)", "licence": "used under ElevenLabs' terms" },
     "lion":    { "max": 2.0, "src": "https://upload.wikimedia.org/wikipedia/commons/d/d3/Lionroar.wav", "page": "https://commons.wikimedia.org/wiki/File:Lionroar.wav", "title": "Lionroar.wav (trimmed, softened)", "by": "Jonathan Growcott, Alex Lobora, Andrew Markham, Charlotte E. Searle, Johan Wahlström, Matthew Wijers, Benno I. Simmons", "licence": "CC BY 4.0", "gain": 0.6 }
   }
 }

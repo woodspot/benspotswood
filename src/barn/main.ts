@@ -151,10 +151,18 @@ function answer(el: HTMLElement): void {
   sfx.match();
   const [x, y] = centerOf(el);
   burst(stage(), x, y, CONFETTI, 22, 130);
-  void say(meetParts(ANIMAL_MAP[id], getLang()));
-  if (wins % PARTY_EVERY === 0) setTimeout(() => celebrate(() => quizRound()), 1400);
-  else setTimeout(() => quizRound(), 2200);
+  // Wait for the animal's whole sound and name before moving on (real recordings can be a few seconds),
+  // but never wait forever if the voice doesn't report back.
+  const round = quiz;
+  const heard = Promise.all([say(meetParts(ANIMAL_MAP[id], getLang())), wait(1400)]);
+  void Promise.race([heard, wait(7000)]).then(() => {
+    if (quiz !== round || mode !== 'quiz') return; // left the game meanwhile
+    if (wins % PARTY_EVERY === 0) celebrate(() => quizRound());
+    else setTimeout(() => quizRound(), 500);
+  });
 }
+
+const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 // ── Screens ────────────────────────────────────────────────────
 
@@ -179,6 +187,7 @@ function start(m: Mode): void {
 
 function stop(): void {
   clearTimeout(idleTimer);
+  quiz = null; // a round waiting for its sound to finish won't carry on
   stopSpeech();
   keepAwake(false);
   stage().innerHTML = '';

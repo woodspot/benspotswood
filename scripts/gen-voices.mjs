@@ -27,7 +27,10 @@ const VOICES = {
   grandpa: { voice: 'onyx', style: `A kind, jolly grandfather with a warm, slightly deeper older voice. ${TODDLER}` },
   mommy: { voice: 'nova', style: `A loving, playful mom. ${TODDLER}` },
   daddy: { voice: 'echo', style: `A fun, playful dad. ${TODDLER}` },
-  santa: { voice: 'onyx', style: `Santa Claus: big, deep, booming and jolly, with hearty laughs. ${TODDLER}` },
+  santa: {
+    voice: 'onyx',
+    style: `Santa Claus himself: a very old, very deep, rumbling, warm voice, round and jolly, with big belly laughs on every "Ho ho ho". Sound like a big cheerful old man with a white beard, not a young man. ${TODDLER}`,
+  },
   critter: { voice: 'fable', style: `A silly, squeaky little cartoon animal, very playful and expressive. ${TODDLER}` },
   bigcritter: { voice: 'ash', style: `A big, goofy, friendly cartoon animal with a deeper silly voice. ${TODDLER}` },
   // ABC: the same friendly voice, told it is reading a letter's name, never the sound the letter makes.

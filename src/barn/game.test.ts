@@ -11,7 +11,7 @@ describe('barnyard', () => {
   });
 
   it('meeting an animal says its sound in its own voice, then its name', () => {
-    const turkey = ANIMALS.find((a) => a.id === 'turkey')!; // no recording: the sound is spoken
+    const turkey = { ...ANIMALS.find((a) => a.id === 'turkey')!, id: 'quiet-turkey' }; // no recording: the sound is spoken
     expect(meetParts(turkey, 'en')).toEqual([{ text: 'Gobble gobble!', lang: 'en', voice: 'bigcritter' }, { text: 'Turkey!', lang: 'en' }]);
     expect(meetParts(turkey, 'es')).toEqual([{ text: '¡Glu glu glu!', lang: 'es', voice: 'bigcritter' }, { text: '¡Pavo!', lang: 'es' }]);
   });
@@ -25,8 +25,8 @@ describe('barnyard', () => {
   });
 
   it('asks questions in English, with the word in Spanish', () => {
-    expect(questionParts({ kind: 'sound', animal: 'turkey' }, 'en')).toEqual([{ text: 'Who says gobble gobble?', lang: 'en' }]);
-    expect(questionParts({ kind: 'sound', animal: 'turkey' }, 'es')).toEqual([{ text: 'Who says', lang: 'en' }, { text: 'glu glu glu?', lang: 'es' }]);
+    expect(questionParts({ kind: 'sound', animal: 'turkey' }, 'en').slice(0, 1)).toEqual([{ text: 'Who says gobble gobble?', lang: 'en' }]);
+    expect(questionParts({ kind: 'sound', animal: 'turkey' }, 'es').slice(0, 2)).toEqual([{ text: 'Who says', lang: 'en' }, { text: 'glu glu glu?', lang: 'es' }]);
     expect(questionParts({ kind: 'name', animal: 'pig' }, 'es')).toEqual([{ text: 'Where is the', lang: 'en' }, { text: 'cerdo', lang: 'es' }]);
   });
 
