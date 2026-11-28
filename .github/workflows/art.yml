@@ -1,0 +1,38 @@
+name: Generate pictures
+
+# Run by hand from the Actions tab. Draws pictures for the toddler games with OpenAI
+# (key in the OPENAI_API_KEY repository secret). "samples" draws a few test pictures in each
+# candidate style and attaches them to the run as a download; nothing is committed.
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: What to draw
+        type: choice
+        options: [samples]
+        default: samples
+
+permissions:
+  contents: read
+
+jobs:
+  art:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: lts/*
+
+      - name: Draw samples
+        if: inputs.mode == 'samples'
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: node scripts/gen-art.mjs --samples
+
+      - uses: actions/upload-artifact@v4
+        if: inputs.mode == 'samples'
+        with:
+          name: art-samples
+          path: art-samples/
