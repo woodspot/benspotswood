@@ -131,7 +131,7 @@ let talkId = 0;
 function speak(kind: LineKind): void {
   if (!inCall) return;
   const rec = recordingFor(inCall.id, kind);
-  const done = rec ? playBlob(rec) : say([lineFor(inCall, kind, getLang(), rng, customOf(inCall.id))]);
+  const done = rec ? playBlob(rec) : say(lineFor(inCall, kind, getLang(), rng, customOf(inCall.id)));
   const av = $('call-avatar');
   const my = ++talkId;
   av.classList.add('talking');

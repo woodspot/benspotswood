@@ -13,8 +13,8 @@ describe('phrase list for the natural voices', () => {
     expect(covered(promptParts({ kind: 'color', id: 'purple' }, 'es'))).toBe(true);
     expect(covered(nameParts(PICS.vehicles[1], 'es'))).toBe(true); // ¡Camión de bomberos!
     expect(covered([keyWord('9', 'es'), keyWord('❤️', 'en')])).toBe(true);
-    expect(covered([lineFor(CONTACT_MAP.santa, 'hello', 'en', () => 0)])).toBe(true);
-    expect(covered([lineFor(CONTACT_MAP.grandma, 'kiss', 'es', () => 0)])).toBe(true);
+    expect(covered(lineFor(CONTACT_MAP.santa, 'hello', 'en', () => 0))).toBe(true);
+    expect(covered(lineFor(CONTACT_MAP.grandma, 'kiss', 'es', () => 0))).toBe(true);
     expect(covered([en('Calling Grandma!'), en('Find the pairs!')])).toBe(true);
   });
 

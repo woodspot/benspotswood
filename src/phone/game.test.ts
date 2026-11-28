@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CONTACTS, CONTACT_MAP, displayName, KEYS, keyWord, lineFor, whoAnswers } from './game';
+import { CONTACTS, CONTACT_MAP, displayName, KEYS, keyWord, lineFor, lineParts, whoAnswers } from './game';
 
 describe('toy phone', () => {
   it('every key says a word in English and Spanish', () => {
@@ -24,13 +24,21 @@ describe('toy phone', () => {
     expect(displayName(g, undefined, 'es')).toBe('Abuela');
     expect(displayName(g, { name: 'Nana' }, 'es')).toBe('Nana');
     // "It's Grandma!" becomes "It's Nana!"
-    const line = lineFor(g, 'more', 'en', () => 0.99, { name: 'Nana' });
+    const [line] = lineFor(g, 'more', 'en', () => 0.99, { name: 'Nana' });
     expect(line.text).toBe("It's Nana! I love talking to you!");
   });
 
   it('animals speak their own sound in each language', () => {
-    expect(lineFor(CONTACT_MAP.dog, 'more', 'es', () => 0).text).toBe('¡Guau guau!');
-    expect(lineFor(CONTACT_MAP.cow, 'more', 'en', () => 0).text).toBe('Moo!');
+    expect(lineFor(CONTACT_MAP.dog, 'more', 'es', () => 0).map((p) => p.text)).toEqual(['¡Guau guau!']);
+    expect(lineFor(CONTACT_MAP.cow, 'more', 'en', () => 0).map((p) => p.text)).toEqual(['Moo!']);
+  });
+
+  it('an animal with a recording plays it, and says the other words around it', () => {
+    const dog = CONTACT_MAP.dog;
+    expect(lineParts(dog, 'Woof woof! Hello!', 'en', true).map((p) => [p.text, p.sound])).toEqual([['Woof woof!', 'dog'], ['Hello!', undefined]]);
+    expect(lineParts(dog, 'Mwah! Woof woof!', 'en', true).map((p) => [p.text, p.sound])).toEqual([['Mwah!', undefined], ['Woof woof!', 'dog']]);
+    expect(lineParts(dog, 'Woof woof! Woof woof!', 'en', true).map((p) => p.sound)).toEqual(['dog', 'dog']);
+    expect(lineParts(dog, 'Woof woof! Hello!', 'en', false)).toHaveLength(1);
   });
 
   it('the same number always reaches the same friend', () => {

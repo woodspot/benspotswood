@@ -9,6 +9,7 @@ export interface Part {
   pitch?: number; // characters can sound higher or lower (1 = normal)
   rate?: number; // speed (1 = normal)
   voice?: VoiceKey; // who is speaking (default 'female')
+  sound?: string; // a real recording to play instead of the words (see sounds.ts), e.g. 'cow'
 }
 
 /**

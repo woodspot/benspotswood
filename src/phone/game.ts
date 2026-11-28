@@ -1,5 +1,6 @@
 // Toy Phone: the words and characters, kept free of the DOM so they can be tested.
 import { en, es, NUMBER_WORDS, type Lang, type Part, type VoiceKey } from '../kids/words';
+import { hasSound } from '../kids/sounds';
 
 // ── Keypad ─────────────────────────────────────────────────────
 
@@ -36,6 +37,7 @@ export interface Contact {
   rate: number;
   name: { en: string; es: string };
   lines: Record<LineKind, { en: string[]; es: string[] }>;
+  sound?: { en: string; es: string }; // animals: their sound, played as a real recording when there is one
 }
 
 const familyLines = (who: { en: string; es: string }) => ({
@@ -64,7 +66,7 @@ export const fam = (id: string, emoji: string, color: string, name: { en: string
   id, emoji, color, family: true, voice, pitch, rate, name, lines: familyLines(name),
 });
 const animal = (id: string, emoji: string, color: string, name: { en: string; es: string }, sound: [string, string], voice: VoiceKey = 'critter', pitch = 1.2): Contact => ({
-  id, emoji, color, family: false, voice, pitch, rate: 1, name, lines: animalLines(...sound),
+  id, emoji, color, family: false, voice, pitch, rate: 1, name, lines: animalLines(...sound), sound: { en: sound[0], es: sound[1] },
 });
 
 export const CONTACTS: Contact[] = [
@@ -104,12 +106,26 @@ export function displayName(c: Contact, custom: Custom | undefined, lang: Lang):
 
 export type Rng = () => number;
 
+/**
+ * A line as speech parts. An animal's own sound becomes its real recording ("Woof woof! Hello!" →
+ * a real bark, then "Hello!"); without a recording (or with `real` false) it's one spoken line.
+ */
+export function lineParts(c: Contact, text: string, lang: Lang, real = !!c.sound && hasSound(c.id)): Part[] {
+  const base: Part = { ...(lang === 'es' ? es(text) : en(text)), voice: c.voice, pitch: c.pitch, rate: c.rate };
+  if (!real || !c.sound) return [base];
+  const said = c.sound[lang];
+  return text.split(said).flatMap((bit, i) => [
+    ...(i ? [{ ...base, text: said, sound: c.id }] : []),
+    ...(bit.trim() ? [{ ...base, text: bit.trim() }] : []),
+  ]);
+}
+
 /** What the person on the phone says. Family use their custom name when they introduce themselves. */
-export function lineFor(c: Contact, kind: LineKind, lang: Lang, rng: Rng, custom?: Custom): Part {
+export function lineFor(c: Contact, kind: LineKind, lang: Lang, rng: Rng, custom?: Custom): Part[] {
   const options = c.lines[kind][lang];
   let text = options[Math.floor(rng() * options.length)];
   if (c.family && custom?.name?.trim()) text = text.replace(c.name[lang], custom.name.trim());
-  return { ...(lang === 'es' ? es(text) : en(text)), voice: c.voice, pitch: c.pitch, rate: c.rate };
+  return lineParts(c, text, lang);
 }
 
 /** Dialling a number calls someone; the same number always reaches the same friend. */

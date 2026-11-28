@@ -4,7 +4,7 @@
 import { nextParts, countParts, nameParts as balloonNames, praiseParts, promptParts } from '../balloons/speech';
 import { COLORS, SHAPES, type Target } from '../balloons/game';
 import { nameParts as matchNames, PICS } from '../match/game';
-import { CONTACTS, KEYS, keyWord } from '../phone/game';
+import { CONTACTS, KEYS, keyWord, lineParts } from '../phone/game';
 import { clipKey, en, es, type Lang, type Part } from '../kids/words';
 import { CAPTAINS } from '../keepfall/captains';
 import { ANIMALS, meetParts, questionParts } from '../barn/game';
@@ -47,7 +47,10 @@ function phone(): Part[] {
     out.push(en(`Calling ${c.name.en}!`), en(`${c.name.en} is calling!`), es(c.name.es));
     for (const lang of LANGS)
       for (const lines of Object.values(c.lines))
-        for (const text of lines[lang]) out.push({ ...(lang === 'es' ? es(text) : en(text)), voice: c.voice });
+        for (const text of lines[lang])
+          // The whole line (spoken when there's no recording) and its words around the real sound.
+          for (const p of [...lineParts(c, text, lang, false), ...lineParts(c, text, lang, true)])
+            if (!p.sound) out.push({ text: p.text, lang: p.lang, voice: c.voice });
   }
   return out;
 }

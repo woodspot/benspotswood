@@ -133,6 +133,7 @@ export const sfx = {
 // Voices: the best natural-sounding one the device has, per language and gender (see voices.ts).
 import { clipKey, en, VOICE_GENDER, type Lang, type Part } from './words';
 import { pickVoice, type Gender } from './voices';
+import { soundUrl } from './sounds';
 export { en, es, type Lang, type Part } from './words';
 
 const cache = new Map<string, SpeechSynthesisVoice | null>();
@@ -230,6 +231,8 @@ function bufferFor(url: string): Promise<AudioBuffer | null> {
   return b;
 }
 const clipUrl = (p: Part) => {
+  const real = p.sound && soundUrl(p.sound);
+  if (real) return real;
   const f = manifest[clipKey(p)];
   return f ? `/voice/${f}` : null;
 };

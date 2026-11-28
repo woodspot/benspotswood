@@ -1,0 +1,52 @@
+name: Animal sounds
+
+# Run by hand from the Actions tab. Downloads the real animal recordings listed in
+# scripts/animal-sounds.json, trims and levels them into src/kids/sounds/, commits them, then
+# redeploys. Free: no API key. "only" remakes just those ids (space-separated, e.g. "cow dog").
+on:
+  workflow_dispatch:
+    inputs:
+      only:
+        description: Remake just these sounds (space-separated ids); empty = all
+        type: string
+        default: ''
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  sounds:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install ffmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+
+      - name: Make sounds
+        env:
+          ONLY: ${{ inputs.only }}
+        run: python3 scripts/gen-sounds.py $ONLY
+
+      - name: Commit sounds
+        id: commit
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/kids/sounds public/sounds
+          if git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            git commit -m "Update animal sounds"
+            git push
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Pushes made by this workflow don't start other workflows, so ask for a deploy directly.
+      - name: Deploy
+        if: always() && steps.commit.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run deploy.yml --ref main

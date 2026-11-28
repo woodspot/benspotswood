@@ -118,3 +118,4 @@ html.turn-270 #app { transform: rotate(90deg) translateY(-100%); }
 
 /* Storybook drawings (src/kids/art.ts) stand in for emoji at the same size. */
 img.art { width: 1.15em; height: 1.15em; object-fit: contain; vertical-align: middle; pointer-events: none; -webkit-user-drag: none; }
+.tip a { color: inherit; }

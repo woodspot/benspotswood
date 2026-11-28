@@ -3,6 +3,7 @@
 //  - Who says? Three or four animals stand in the meadow; the voice asks "Who says moo?" or
 //    "Where's the cow?" and the child taps the right one. A wrong tap just plays that animal's sound.
 import { en, es, type Lang, type Part, type VoiceKey } from '../kids/words';
+import { hasSound } from '../kids/sounds';
 
 export interface Animal {
   id: string;
@@ -53,8 +54,12 @@ function shuffle<T>(list: readonly T[], rng: Rng): T[] {
 
 // ── Speech ─────────────────────────────────────────────────────
 
-/** The animal's own sound, in its own voice. */
-export const soundPart = (a: Animal, lang: Lang): Part => ({ ...(lang === 'es' ? es(a.sound.es) : en(a.sound.en)), voice: a.voice });
+/** The animal's own sound: its real recording, or else said in its own voice. */
+export const soundPart = (a: Animal, lang: Lang): Part => ({
+  ...(lang === 'es' ? es(a.sound.es) : en(a.sound.en)),
+  voice: a.voice,
+  ...(hasSound(a.id) ? { sound: a.id } : {}),
+});
 
 /** The animal's name: "Cow!" or "¡Vaca!" */
 export const namePart = (a: Animal, lang: Lang): Part => (lang === 'es' ? es(`¡${cap(a.name.es)}!`) : en(`${cap(a.name.en)}!`));
@@ -68,7 +73,11 @@ export type Question = { kind: 'sound' | 'name'; animal: string };
 export function questionParts(q: Question, lang: Lang): Part[] {
   const a = ANIMAL_MAP[q.animal];
   const bare = (t: string) => t.replace(/[¡!]/g, '').toLowerCase();
-  if (q.kind === 'sound') return lang === 'es' ? [en('Who says'), es(`${bare(a.sound.es)}?`)] : [en(`Who says ${bare(a.sound.en)}?`)];
+  if (q.kind === 'sound') {
+    const ask = lang === 'es' ? [en('Who says'), es(`${bare(a.sound.es)}?`)] : [en(`Who says ${bare(a.sound.en)}?`)];
+    // Then the real thing, so they learn what a cow really sounds like.
+    return hasSound(a.id) ? [...ask, soundPart(a, lang)] : ask;
+  }
   return lang === 'es' ? [en('Where is the'), es(a.name.es)] : [en(`Where is the ${a.name.en}?`)];
 }
 

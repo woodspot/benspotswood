@@ -1,0 +1,18 @@
+{
+  "_about": "Real animal recordings for Barnyard and the Toy Phone. scripts/gen-sounds.py downloads each one, keeps its best 'max' seconds, levels it and saves src/kids/sounds/<id>.mp3. 'gain' makes a sound softer (<1) or louder. Animals not listed here keep their spoken sound.",
+  "sounds": {
+    "cow":     { "max": 2.5, "src": "https://bigsoundbank.com/UPLOAD/mp3/2383.mp3", "page": "https://bigsoundbank.com/cow-moos-3-s2383.html", "title": "Cow moos #3", "by": "Joseph Sardin, BigSoundBank", "licence": "CC0" },
+    "sheep":   { "max": 2.0, "src": "https://bigsoundbank.com/UPLOAD/mp3/2343.mp3", "page": "https://bigsoundbank.com/sheep-1-s2343.html", "title": "Sheep #1", "by": "Joseph Sardin, BigSoundBank", "licence": "CC0" },
+    "horse":   { "max": 2.2, "src": "https://bigsoundbank.com/UPLOAD/mp3/0284.mp3", "page": "https://bigsoundbank.com/neighing-of-a-horse-1-s0284.html", "title": "Neighing of a horse #1", "by": "Joseph Sardin, BigSoundBank", "licence": "CC0" },
+    "chicken": { "max": 2.5, "src": "https://bigsoundbank.com/UPLOAD/mp3/0978.mp3", "page": "https://bigsoundbank.com/hens-lays-s0978.html", "title": "Hens lays", "by": "Joseph Sardin, BigSoundBank", "licence": "CC0" },
+    "duck":    { "max": 2.0, "src": "https://bigsoundbank.com/UPLOAD/mp3/0276.mp3", "page": "https://bigsoundbank.com/ducks-s0276.html", "title": "Ducks", "by": "Joseph Sardin, BigSoundBank", "licence": "CC0" },
+    "dog":     { "max": 2.0, "src": "https://bigsoundbank.com/UPLOAD/mp3/2955.mp3", "page": "https://bigsoundbank.com/barking-dog-3-s2955.html", "title": "Barking dog #3", "by": "Joseph Sardin, BigSoundBank", "licence": "CC0", "gain": 0.85 },
+    "cat":     { "max": 1.8, "src": "https://bigsoundbank.com/UPLOAD/mp3/1891.mp3", "page": "https://bigsoundbank.com/meow-cat-3-s1891.html", "title": "Meow cat #3", "by": "Joseph Sardin, BigSoundBank", "licence": "CC0" },
+    "goat":    { "max": 2.0, "src": "https://bigsoundbank.com/UPLOAD/mp3/0279.mp3", "page": "https://bigsoundbank.com/bleating-goat-1-s0279.html", "title": "Bleating goat #1", "by": "Joseph Sardin, BigSoundBank", "licence": "CC0" },
+    "rooster": { "max": 3.0, "src": "https://bigsoundbank.com/UPLOAD/mp3/0283.mp3", "page": "https://bigsoundbank.com/song-of-rooster-s0283.html", "title": "Song of rooster", "by": "Joseph Sardin, BigSoundBank", "licence": "CC0", "gain": 0.8 },
+    "frog":    { "max": 2.0, "src": "https://bigsoundbank.com/UPLOAD/mp3/0819.mp3", "page": "https://bigsoundbank.com/one-frog-s0819.html", "title": "One frog", "by": "Joseph Sardin, BigSoundBank", "licence": "CC0" },
+    "owl":     { "max": 2.5, "src": "https://bigsoundbank.com/UPLOAD/mp3/1763.mp3", "page": "https://bigsoundbank.com/tawny-owl-1-s1763.html", "title": "Tawny owl #1", "by": "Joseph Sardin, BigSoundBank", "licence": "CC0" },
+    "bee":     { "max": 2.0, "src": "https://bigsoundbank.com/UPLOAD/mp3/1000.mp3", "page": "https://bigsoundbank.com/bumblebee-1-s1000.html", "title": "Bumblebee #1", "by": "Joseph Sardin, BigSoundBank", "licence": "CC0" },
+    "lion":    { "max": 2.0, "src": "https://upload.wikimedia.org/wikipedia/commons/d/d3/Lionroar.wav", "page": "https://commons.wikimedia.org/wiki/File:Lionroar.wav", "title": "Lionroar.wav (trimmed, softened)", "by": "Jonathan Growcott, Alex Lobora, Andrew Markham, Charlotte E. Searle, Johan Wahlström, Matthew Wijers, Benno I. Simmons", "licence": "CC BY 4.0", "gain": 0.6 }
+  }
+}
