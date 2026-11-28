@@ -14,4 +14,5 @@ owl: "Tawny owl #1" by Joseph Sardin, BigSoundBank, CC0, https://bigsoundbank.co
 bee: "Bumblebee #1" by Joseph Sardin, BigSoundBank, CC0, https://bigsoundbank.com/bumblebee-1-s1000.html
 pig: "Pig snorting" by ElevenLabs sound effects (made for this site), used under ElevenLabs' terms
 mouse: "Curious mouse squeak" by ElevenLabs sound effects (made for this site), used under ElevenLabs' terms
+turkey: "Turkey gobble" by ElevenLabs sound effects (made for this site), used under ElevenLabs' terms
 lion: "Lionroar.wav (trimmed, softened)" by Jonathan Growcott, Alex Lobora, Andrew Markham, Charlotte E. Searle, Johan Wahlström, Matthew Wijers, Benno I. Simmons, CC BY 4.0, https://commons.wikimedia.org/wiki/File:Lionroar.wav
